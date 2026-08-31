@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ciclo de Instrucciones: Fase EXECUTE — Arquitectura de Computadores</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f8f9fa; color: #1a1a2e; min-height: 100vh; display: flex; flex-direction: column; }
+    header { background: #1a1a2e; color: #fff; padding: 16px 24px; text-align: center; }
+    header h1 { font-size: 20px; font-weight: 600; }
+    header p  { font-size: 13px; color: #a0aec0; margin-top: 4px; }
+    main { flex: 1; max-width: 960px; width: 100%; margin: 0 auto; padding: 20px 16px; }
+    #canvas { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; overflow: hidden; }
+    #canvas svg { width: 100%; height: auto; display: block; }
+    #step-description { background: #eef2ff; border-left: 4px solid #4f46e5; border-radius: 0 8px 8px 0; padding: 12px 16px; margin: 14px 0; font-size: 14px; line-height: 1.6; min-height: 52px; color: #312e81; }
+    #controls { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+    button { padding: 8px 20px; border: 1.5px solid #4f46e5; border-radius: 8px; background: #fff; color: #4f46e5; font-size: 14px; font-weight: 500; cursor: pointer; }
+    button:hover { background: #4f46e5; color: #fff; }
+    button.primary { background: #4f46e5; color: #fff; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    #speed-wrap { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #64748b; margin-top: 10px; justify-content: center; }
+    input[type=range] { width: 120px; }
+    footer { text-align: center; padding: 18px 0 10px; border-top: 1px solid #e0e0e0; font-size: 12px; color: #888; margin-top: auto; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>Ciclo de Instrucciones — Fase EXECUTE</h1>
+  <p>Instrucción: ADD R1, R2, R3 — Modelo 4 etapas (Fetch → Decode → <strong>Execute</strong> → Writeback)</p>
+</header>
+<main>
+  <div id="canvas">
+    <svg viewBox="0 0 960 720" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe UI',sans-serif">
+      <defs>
+        <marker id="arr-v" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,1 L8,4.5 L0,8Z" fill="#7c3aed"/></marker>
+        <marker id="arr-b" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,1 L8,4.5 L0,8Z" fill="#2563eb"/></marker>
+        <marker id="arr-p" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,1 L8,4.5 L0,8Z" fill="#db2777"/></marker>
+        <marker id="arr-y" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,1 L8,4.5 L0,8Z" fill="#ca8a04"/></marker>
+        <marker id="arr-g" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,1 L8,4.5 L0,8Z" fill="#16a34a"/></marker>
+      </defs>
+
+      <!-- ══ BANDA IR ══ -->
+      <rect x="10" y="10" width="940" height="60" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+      <text x="480" y="28" text-anchor="middle" font-size="11" font-weight="700" fill="#94a3b8">INSTRUCCIÓN en el IR (viene de DECODE, ya decodificada)</text>
+
+      <!-- campo: opcode -->
+      <rect x="30"  y="36" width="120" height="26" rx="5" fill="#7c3aed"/>
+      <text x="90"  y="47" text-anchor="middle" font-size="9"  fill="#ede9fe">Opcode</text>
+      <text x="90"  y="58" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">ADD</text>
+
+      <!-- campo: destino -->
+      <rect x="165" y="36" width="130" height="26" rx="5" fill="#3b82f6"/>
+      <text x="230" y="47" text-anchor="middle" font-size="9"  fill="#dbeafe">Registro destino</text>
+      <text x="230" y="58" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">R1</text>
+
+      <!-- campo: Op A -->
+      <rect x="310" y="36" width="180" height="26" rx="5" fill="#0f766e"/>
+      <text x="400" y="47" text-anchor="middle" font-size="9"  fill="#ccfbf1">Registro fuente A (Op A)</text>
+      <text x="400" y="58" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">R2  (valor = 2)</text>
+
+      <!-- campo: Op B -->
+      <rect x="505" y="36" width="180" height="26" rx="5" fill="#0369a1"/>
+      <text x="595" y="47" text-anchor="middle" font-size="9"  fill="#bae6fd">Registro fuente B (Op B)</text>
+      <text x="595" y="58" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">R3  (valor = 3)</text>
+
+      <!-- campo: UC -->
+      <rect x="700" y="36" width="240" height="26" rx="5" fill="#b45309"/>
+      <text x="820" y="47" text-anchor="middle" font-size="9"  fill="#fef3c7">UC genera señales</text>
+      <text x="820" y="58" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">ALUOp=ADD, RegWrite=1</text>
+
+      <!-- ══ CPU BOUNDARY ══ -->
+      <rect x="12" y="82" width="936" height="510" rx="10" fill="none" stroke="#6366f1" stroke-width="2" stroke-dasharray="8,5"/>
+      <text x="26" y="98" font-size="11" font-weight="700" fill="#6366f1">CPU</text>
+
+      <!-- ══════════════════════════════════════════
+           BANCO DE REGISTROS (izquierda)
+           ══════════════════════════════════════════ -->
+      <rect x="28" y="108" width="200" height="200" rx="10" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+      <text x="128" y="126" text-anchor="middle" font-size="13" font-weight="700" fill="#3b0764">Banco de Registros</text>
+      <text x="128" y="140" text-anchor="middle" font-size="10" fill="#6d28d9">(dentro del CPU)</text>
+
+      <!-- R2 -->
+      <rect x="44"  y="152" width="168" height="44" rx="7" fill="#d8b4fe" stroke="#7c3aed" stroke-width="1.5"/>
+      <text x="128" y="168" text-anchor="middle" font-size="10" fill="#4c1d95">R2 — Operando A</text>
+      <text x="128" y="186" text-anchor="middle" font-size="18" font-weight="700" fill="#3b0764">2</text>
+
+      <!-- R3 -->
+      <rect x="44"  y="206" width="168" height="44" rx="7" fill="#bfdbfe" stroke="#2563eb" stroke-width="1.5"/>
+      <text x="128" y="222" text-anchor="middle" font-size="10" fill="#1e3a8a">R3 — Operando B</text>
+      <text x="128" y="240" text-anchor="middle" font-size="18" font-weight="700" fill="#1e3a8a">3</text>
+
+      <!-- R1 destino -->
+      <rect x="44"  y="262" width="168" height="38" rx="7" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5" stroke-dasharray="5,3"/>
+      <text x="128" y="277" text-anchor="middle" font-size="10" fill="#14532d">R1 — Destino (vacío ahora)</text>
+      <text x="128" y="291" text-anchor="middle" font-size="11" fill="#4ade80">(se escribirá en WRITEBACK)</text>
+
+      <!-- ══════════════════════════════════════════
+           UNIDAD DE CONTROL (izquierda, abajo)
+           ══════════════════════════════════════════ -->
+      <rect x="28" y="322" width="200" height="152" rx="10" fill="#fce7f3" stroke="#db2777" stroke-width="2"/>
+      <text x="128" y="340" text-anchor="middle" font-size="13" font-weight="700" fill="#831843">Unidad de Control</text>
+      <text x="128" y="354" text-anchor="middle" font-size="10" fill="#9d174d">(decodificó ADD → genera señales)</text>
+
+      <!-- señales UC (ocultas) -->
+      <g id="uc-signals" opacity="0">
+        <text x="128" y="378" text-anchor="middle" font-size="11" fill="#be185d">ALUOp = ADD</text>
+        <text x="128" y="396" text-anchor="middle" font-size="11" fill="#be185d">ALUSrc = 0 (usa registros)</text>
+        <text x="128" y="414" text-anchor="middle" font-size="11" fill="#be185d">RegWrite = 1 (escribe R1)</text>
+        <circle cx="128" cy="436" r="5" fill="#db2777"/>
+        <text x="128" y="453" text-anchor="middle" font-size="10" font-weight="700" fill="#db2777">● señales enviadas</text>
+      </g>
+
+      <!-- ══════════════════════════════════════════
+           ALU (centro)  — forma W estándar IEEE
+           ══════════════════════════════════════════ -->
+      <!-- flat top izq  + V-notch + flat top der + lados biselados + base plana -->
+      <polygon id="alu-body"
+        points="310,200 430,200 480,262 530,200 650,200 620,390 340,390"
+        fill="#fef9c3" stroke="#eab308" stroke-width="3"/>
+      <text x="480" y="310" text-anchor="middle" font-size="20" font-weight="700" fill="#713f12">ALU</text>
+      <text x="390" y="220" text-anchor="middle" font-size="13" font-weight="700" fill="#854d0e">A</text>
+      <text x="570" y="220" text-anchor="middle" font-size="13" font-weight="700" fill="#854d0e">B</text>
+
+      <!-- operación mostrada dentro ALU -->
+      <g id="alu-math" opacity="0">
+        <text x="480" y="342" text-anchor="middle" font-size="14" font-weight="700" fill="#713f12">2 + 3 = 5</text>
+        <text x="480" y="360" text-anchor="middle" font-size="10" fill="#92400e">(suma entera, sin signo)</text>
+        <text x="480" y="378" text-anchor="middle" font-size="11" font-weight="700" fill="#16a34a">✓ resultado = 5</text>
+      </g>
+
+      <!-- ══════════════════════════════════════════
+           PSW / FLAGS (derecha)
+           ══════════════════════════════════════════ -->
+      <rect id="psw-block" x="696" y="108" width="238" height="260" rx="10" fill="#fef9c3" stroke="#eab308" stroke-width="2"/>
+      <text x="815" y="127" text-anchor="middle" font-size="13" font-weight="700" fill="#713f12">PSW — Registro de Estado</text>
+      <text x="815" y="142" text-anchor="middle" font-size="10" fill="#92400e">(dentro del CPU)</text>
+
+      <g id="psw-flags" opacity="0">
+        <text x="815" y="165" text-anchor="middle" font-size="10" fill="#78350f">Flags del resultado de la ALU:</text>
+        <text x="815" y="178" text-anchor="middle" font-size="10" fill="#92400e">resultado = 5 → positivo, no nulo, sin carry</text>
+
+        <rect x="712" y="186" width="96" height="44" rx="6" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/>
+        <text x="760" y="202" text-anchor="middle" font-size="10" fill="#14532d">Zero (Z) = 0</text>
+        <text x="760" y="216" text-anchor="middle" font-size="10" fill="#15803d">resultado ≠ 0</text>
+
+        <rect x="822" y="186" width="96" height="44" rx="6" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/>
+        <text x="870" y="202" text-anchor="middle" font-size="10" fill="#14532d">Sign (N) = 0</text>
+        <text x="870" y="216" text-anchor="middle" font-size="10" fill="#15803d">resultado positivo</text>
+
+        <rect x="712" y="240" width="96" height="44" rx="6" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/>
+        <text x="760" y="256" text-anchor="middle" font-size="10" fill="#14532d">Carry (C) = 0</text>
+        <text x="760" y="270" text-anchor="middle" font-size="10" fill="#15803d">sin acarreo</text>
+
+        <rect x="822" y="240" width="96" height="44" rx="6" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/>
+        <text x="870" y="256" text-anchor="middle" font-size="10" fill="#14532d">Overflow (V) = 0</text>
+        <text x="870" y="270" text-anchor="middle" font-size="10" fill="#15803d">sin desbordamiento</text>
+
+        <text x="815" y="308" text-anchor="middle" font-size="10" font-style="italic" fill="#92400e">5 cabe en un registro de 32 bits</text>
+        <text x="815" y="322" text-anchor="middle" font-size="10" font-style="italic" fill="#92400e">→ no hay overflow posible aquí</text>
+        <text x="815" y="340" text-anchor="middle" font-size="10" font-style="italic" fill="#6d28d9">⚠ ¿Cuándo hay overflow? Si sumas</text>
+        <text x="815" y="354" text-anchor="middle" font-size="10" font-style="italic" fill="#6d28d9">números muy grandes y el resultado</text>
+        <text x="815" y="368" text-anchor="middle" font-size="10" font-style="italic" fill="#6d28d9">no cabe en los bits del registro</text>
+      </g>
+
+      <!-- ══════════════════════════════════════════
+           FLECHAS
+           ══════════════════════════════════════════ -->
+      <!-- UC → ALU (señal de control) -->
+      <line id="wire-ctrl" x1="228" y1="398" x2="380" y2="350" stroke="#db2777" stroke-width="2" stroke-dasharray="6,3" marker-end="url(#arr-p)" opacity="0"/>
+      <text id="lbl-ctrl" x="285" y="365" font-size="9" fill="#db2777" opacity="0">ALUOp</text>
+
+      <!-- R2 → ALU  (Op A) -->
+      <line id="wire-a" x1="212" y1="174" x2="308" y2="255" stroke="#7c3aed" stroke-width="2.5" marker-end="url(#arr-v)" opacity="0"/>
+      <text id="lbl-a" x="222" y="205" font-size="10" font-weight="700" fill="#7c3aed" opacity="0">Op A: 2</text>
+
+      <!-- R3 → ALU  (Op B) -->
+      <line id="wire-b" x1="212" y1="228" x2="308" y2="267" stroke="#2563eb" stroke-width="2.5" marker-end="url(#arr-b)" opacity="0"/>
+      <text id="lbl-b" x="222" y="258" font-size="10" font-weight="700" fill="#2563eb" opacity="0">Op B: 3</text>
+
+      <!-- ALU → Flags -->
+      <line id="wire-flags" x1="652" y1="290" x2="694" y2="230" stroke="#ca8a04" stroke-width="2" marker-end="url(#arr-y)" opacity="0"/>
+      <text id="lbl-flags" x="656" y="258" font-size="9" fill="#ca8a04" opacity="0">Flags</text>
+
+      <!-- ALU resultado → WRITEBACK (abajo) -->
+      <line id="wire-result" x1="480" y1="392" x2="480" y2="470" stroke="#16a34a" stroke-width="3" marker-end="url(#arr-g)" opacity="0"/>
+      <text id="lbl-result" x="490" y="440" font-size="10" font-weight="700" fill="#16a34a" opacity="0">resultado: 5</text>
+
+      <!-- ══════════════════════════════════════════
+           WRITEBACK (abajo, centro)
+           ══════════════════════════════════════════ -->
+      <g id="wb-block" opacity="0">
+        <rect x="320" y="474" width="322" height="88" rx="10" fill="#dcfce7" stroke="#16a34a" stroke-width="2.5"/>
+        <text x="481" y="496" text-anchor="middle" font-size="13" font-weight="700" fill="#14532d">WRITEBACK — Banco de Registros (CPU)</text>
+        <rect x="340" y="504" width="282" height="46" rx="8" fill="#16a34a"/>
+        <text x="481" y="523" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">R1 ← 5</text>
+        <text x="481" y="540" text-anchor="middle" font-size="11" fill="#bbf7d0">El valor 5 se almacena en el registro R1</text>
+      </g>
+
+      <!-- banner final -->
+      <g id="done-banner" opacity="0">
+        <rect x="320" y="572" width="322" height="30" rx="8" fill="#e0fdf4" stroke="#16a34a" stroke-width="1.5"/>
+        <text x="481" y="591" text-anchor="middle" font-size="12" font-weight="700" fill="#065f46">✓ EXECUTE completado — R1 = 5</text>
+      </g>
+
+      <!-- ══ LEYENDA ══ -->
+      <g transform="translate(14,642)">
+        <rect width="10" height="10" rx="2" fill="#7c3aed"/><text x="14" y="9" font-size="10" fill="#444">Op A (R2)</text>
+        <rect x="90" width="10" height="10" rx="2" fill="#2563eb"/><text x="104" y="9" font-size="10" fill="#444">Op B (R3)</text>
+        <rect x="178" width="10" height="10" rx="2" fill="#db2777"/><text x="192" y="9" font-size="10" fill="#444">Señal ALUOp</text>
+        <rect x="286" width="10" height="10" rx="2" fill="#ca8a04"/><text x="300" y="9" font-size="10" fill="#444">Flags → PSW</text>
+        <rect x="380" width="10" height="10" rx="2" fill="#16a34a"/><text x="394" y="9" font-size="10" fill="#444">Resultado → R1</text>
+      </g>
+    </svg>
+  </div>
+
+  <div id="step-description">Presiona Reproducir para comenzar la animación.</div>
+
+  <div id="controls">
+    <button id="btn-prev"    disabled>← Anterior</button>
+    <button id="btn-play"    class="primary">▶ Reproducir</button>
+    <button id="btn-pause"   disabled>⏸ Pausar</button>
+    <button id="btn-next"    disabled>Siguiente →</button>
+    <button id="btn-restart">↺ Reiniciar</button>
+  </div>
+  <div id="speed-wrap">
+    <span>Velocidad:</span>
+    <input type="range" id="speed" min="0.25" max="2" step="0.25" value="1">
+    <span id="speed-label">1×</span>
+  </div>
+</main>
+<footer>© Diego García — Arquitectura de Computadores</footer>
+
+<script>
+  const steps = [
+    { desc: '<strong>Paso 1 — Estado inicial:</strong> La instrucción ADD R1, R2, R3 fue decodificada en la fase DECODE. El Banco de Registros tiene R2=2 y R3=3. R1 está vacío — será el destino del resultado. La ALU espera los operandos.' },
+    { desc: '<strong>Paso 2 — Señales de control:</strong> La Unidad de Control envía señales a la ALU: <em>ALUOp=ADD</em> (operación de suma), <em>ALUSrc=0</em> (los dos operandos vienen de registros, no de un inmediato), y <em>RegWrite=1</em> (al final se escribe en R1).' },
+    { desc: '<strong>Paso 3 — Operando A entra a la ALU:</strong> El valor de R2 (= 2) viaja por el bus de registros hasta la entrada A de la ALU. La ALU sabe que este será el primer número de la suma.' },
+    { desc: '<strong>Paso 4 — Operando B entra a la ALU:</strong> El valor de R3 (= 3) viaja hasta la entrada B de la ALU. Ahora la ALU tiene los dos números: A=2 y B=3.' },
+    { desc: '<strong>Paso 5 — La ALU ejecuta la suma:</strong> La ALU realiza la operación 2 + 3 = 5. Simultáneamente actualiza las banderas del PSW: Z=0 (resultado no es cero), N=0 (resultado positivo), C=0 (no hay acarreo), V=0 (5 cabe perfectamente en el registro, no hay overflow).' },
+    { desc: '<strong>Paso 6 — WRITEBACK:</strong> El resultado 5 viaja desde la salida de la ALU hasta el Banco de Registros. El bit RegWrite=1 autoriza la escritura y el valor 5 queda almacenado en R1. La instrucción ADD R1, R2, R3 ha concluido.' },
+  ];
+
+  let currentStep = -1;
+  let masterTL = null;
+
+  const btnPlay    = document.getElementById('btn-play');
+  const btnPause   = document.getElementById('btn-pause');
+  const btnPrev    = document.getElementById('btn-prev');
+  const btnNext    = document.getElementById('btn-next');
+  const btnRestart = document.getElementById('btn-restart');
+  const descEl     = document.getElementById('step-description');
+  const speedSlider = document.getElementById('speed');
+  const speedLabel  = document.getElementById('speed-label');
+
+  // ── elementos que empiezan ocultos ────────────────────────
+  const HIDE = ['#uc-signals','#wire-ctrl','#lbl-ctrl',
+                '#wire-a','#lbl-a','#wire-b','#lbl-b',
+                '#alu-math','#wire-flags','#lbl-flags',
+                '#psw-flags','#wire-result','#lbl-result',
+                '#wb-block','#done-banner'];
+
+  // ── applyStep: sincronización para Anterior/Siguiente ─────
+  function applyStep(s) {
+    gsap.set(HIDE, { opacity: 0 });
+    if (s >= 1) gsap.set(['#uc-signals','#wire-ctrl','#lbl-ctrl'], { opacity: 1 });
+    if (s >= 2) gsap.set(['#wire-a','#lbl-a'], { opacity: 1 });
+    if (s >= 3) gsap.set(['#wire-b','#lbl-b'], { opacity: 1 });
+    if (s >= 4) {
+      gsap.set(['#alu-math','#wire-flags','#lbl-flags','#psw-flags'], { opacity: 1 });
+    }
+    if (s >= 5) gsap.set(['#wire-result','#lbl-result','#wb-block','#done-banner'], { opacity: 1 });
+  }
+
+  function setStep(i) {
+    currentStep = i;
+    if (steps[i]) descEl.innerHTML = steps[i].desc;
+    btnPrev.disabled = i <= 0;
+    btnNext.disabled = i >= steps.length - 1;
+  }
+
+  // ── buildTimeline ──────────────────────────────────────────
+  function buildTimeline() {
+    if (masterTL) masterTL.kill();
+    gsap.set(HIDE, { opacity: 0 });
+
+    masterTL = gsap.timeline({ paused: true });
+
+    masterTL
+      // paso-0: estado inicial
+      .addLabel('paso-0')
+      .call(() => setStep(0))
+      .to('#alu-body', { fill: '#fef9c3', duration: 0.4 })
+
+      // paso-1: UC genera señales
+      .addLabel('paso-1')
+      .call(() => setStep(1))
+      .to(['#uc-signals','#wire-ctrl','#lbl-ctrl'], { opacity: 1, duration: 0.5, ease: 'power2.out' })
+      .to('#alu-body', { fill: '#fde68a', duration: 0.3 }, '<0.3')
+
+      // paso-2: Op A entra
+      .addLabel('paso-2')
+      .call(() => setStep(2))
+      .to(['#wire-a','#lbl-a'], { opacity: 1, duration: 0.6, ease: 'power2.out' })
+      .to('#alu-body', { stroke: '#d97706', duration: 0.3 }, '<')
+
+      // paso-3: Op B entra
+      .addLabel('paso-3')
+      .call(() => setStep(3))
+      .to(['#wire-b','#lbl-b'], { opacity: 1, duration: 0.6, ease: 'power2.out' })
+
+      // paso-4: ALU computa, flags
+      .addLabel('paso-4')
+      .call(() => setStep(4))
+      .to('#alu-body', { fill: '#fbbf24', stroke: '#d97706', duration: 0.5, ease: 'power1.inOut' })
+      .to('#alu-math', { opacity: 1, duration: 0.5, ease: 'back.out(1.2)' }, '<0.2')
+      .to(['#wire-flags','#lbl-flags'], { opacity: 1, duration: 0.4 }, '<0.3')
+      .to('#psw-flags', { opacity: 1, duration: 0.5, ease: 'back.out(1.2)' }, '<0.1')
+
+      // paso-5: resultado + writeback
+      .addLabel('paso-5')
+      .call(() => setStep(5))
+      .to(['#wire-result','#lbl-result'], { opacity: 1, duration: 0.6, ease: 'power2.out' })
+      .to('#wb-block', { opacity: 1, duration: 0.5, ease: 'back.out(1.2)' }, '<0.4')
+      .to('#done-banner', { opacity: 1, duration: 0.4 }, '<0.4');
+
+    return masterTL;
+  }
+
+  // ── controles ──────────────────────────────────────────────
+  btnPlay.addEventListener('click', () => {
+    if (!masterTL || masterTL.progress() === 0) buildTimeline();
+    masterTL.timeScale(parseFloat(speedSlider.value));
+    masterTL.play();
+    btnPlay.disabled  = true;
+    btnPause.disabled = false;
+    btnNext.disabled  = false;
+  });
+
+  btnPause.addEventListener('click', () => {
+    masterTL.pause();
+    btnPlay.disabled  = false;
+    btnPause.disabled = true;
+  });
+
+  btnPrev.addEventListener('click', () => {
+    if (currentStep > 0) {
+      masterTL.pause();
+      masterTL.seek(`paso-${currentStep - 1}`);
+      applyStep(currentStep - 1);
+      setStep(currentStep - 1);
+    }
+  });
+
+  btnNext.addEventListener('click', () => {
+    if (currentStep < steps.length - 1) {
+      masterTL.pause();
+      masterTL.seek(`paso-${currentStep + 1}`);
+      applyStep(currentStep + 1);
+      setStep(currentStep + 1);
+    }
+  });
+
+  btnRestart.addEventListener('click', () => {
+    buildTimeline();
+    currentStep = -1;
+    descEl.textContent = 'Presiona Reproducir para comenzar la animación.';
+    btnPlay.disabled  = false;
+    btnPause.disabled = true;
+    btnPrev.disabled  = true;
+    btnNext.disabled  = true;
+  });
+
+  speedSlider.addEventListener('input', () => {
+    const v = parseFloat(speedSlider.value);
+    speedLabel.textContent = v + '×';
+    if (masterTL) masterTL.timeScale(v);
+  });
+
+  buildTimeline();
+</script>
+</body>
+</html>

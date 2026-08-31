@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ciclo de Instrucciones: Fase DECODE — Arquitectura de Computadores</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-page: #f8f9fa;
+      --bg-canvas: #ffffff;
+      --border: #e2e8f0;
+      --text: #1a1a2e;
+      --text-light: #64748b;
+    }
+    body.dark {
+      --bg-page: #0f172a;
+      --bg-canvas: #1e293b;
+      --border: #334155;
+      --text: #e2e8f0;
+      --text-light: #94a3b8;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg-page);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    header {
+      background: #1a1a2e;
+      color: #fff;
+      padding: 16px 24px;
+      text-align: center;
+      position: relative;
+    }
+    header h1 { font-size: 20px; font-weight: 600; }
+    header p { font-size: 13px; color: #a0aec0; margin-top: 4px; }
+
+    #btn-dark {
+      position: absolute;
+      right: 16px; top: 50%;
+      transform: translateY(-50%);
+      padding: 6px 14px;
+      border: 1.5px solid #a0aec0;
+      border-radius: 20px;
+      background: transparent;
+      color: #fff;
+      font-size: 12px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    #btn-dark:hover { background: rgba(255,255,255,0.15); }
+
+    main {
+      flex: 1;
+      max-width: 1100px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 24px 16px;
+    }
+
+    #canvas {
+      background: var(--bg-canvas);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+      transition: background 0.3s, border-color 0.3s;
+    }
+    #canvas svg { width: 100%; height: auto; display: block; }
+
+    #step-description {
+      background: #eef2ff;
+      border-left: 4px solid #4f46e5;
+      border-radius: 0 8px 8px 0;
+      padding: 12px 16px;
+      margin: 16px 0;
+      font-size: 14px;
+      line-height: 1.6;
+      min-height: 48px;
+      color: #312e81;
+      transition: background 0.3s, color 0.3s;
+    }
+    body.dark #step-description {
+      background: #1e1b4b;
+      color: #c7d2fe;
+      border-left-color: #818cf8;
+    }
+
+    #controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-top: 16px;
+    }
+    button {
+      padding: 8px 20px;
+      border: 1.5px solid #4f46e5;
+      border-radius: 8px;
+      background: #fff;
+      color: #4f46e5;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    button:hover { background: #4f46e5; color: #fff; }
+    button.primary { background: #4f46e5; color: #fff; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    #speed-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--text-light);
+      margin-top: 12px;
+      justify-content: center;
+    }
+    input[type=range] { width: 120px; }
+
+    .legend {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--text-light);
+    }
+    .legend-item { display: flex; align-items: center; gap: 5px; }
+    .legend-dot { width: 12px; height: 12px; border-radius: 3px; }
+
+    footer {
+      text-align: center;
+      padding: 18px 0 10px;
+      border-top: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--text-light);
+      margin-top: auto;
+      transition: border-color 0.3s;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Ciclo de Instrucciones — Fase DECODE</h1>
+  <p>Decodificación: análisis de la instrucción</p>
+  <button id="btn-dark">🌙 Modo Oscuro</button>
+</header>
+
+<main>
+  <div id="canvas">
+    <svg viewBox="0 0 1400 680" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe UI', sans-serif">
+
+      <defs>
+        <marker id="m-blue" markerWidth="12" markerHeight="12" refX="9" refY="6" orient="auto">
+          <path d="M0,0 L12,6 L0,12 Z" fill="#4f46e5"/>
+        </marker>
+        <marker id="m-orange" markerWidth="12" markerHeight="12" refX="9" refY="6" orient="auto">
+          <path d="M0,0 L12,6 L0,12 Z" fill="#ea580c"/>
+        </marker>
+        <marker id="m-green" markerWidth="12" markerHeight="12" refX="9" refY="6" orient="auto">
+          <path d="M0,0 L12,6 L0,12 Z" fill="#16a34a"/>
+        </marker>
+      </defs>
+
+      <!-- ══════════════════════════════════════════════
+           ZONA 1: INSTRUCTION REGISTER  (x 20–410)
+           ══════════════════════════════════════════════ -->
+      <g id="zone-ir">
+        <rect x="20" y="20" width="390" height="640" rx="14" fill="#f3f0ff" stroke="#a5b4fc" stroke-width="2.5"/>
+        <text x="215" y="56" text-anchor="middle" font-size="15" font-weight="700" fill="#3730a3">INSTRUCTION REGISTER (IR)</text>
+
+        <!-- ── Hex desglosado ── -->
+        <text x="40" y="95" font-size="11" font-weight="700" fill="#4338ca">Campos hexadecimales:</text>
+
+        <rect id="hex-opcode" x="40" y="108" width="105" height="52" rx="7" fill="#fef9c3" stroke="#eab308" stroke-width="2.5"/>
+        <text x="92" y="128" text-anchor="middle" font-size="13" font-weight="700" fill="#713f12">0x20</text>
+        <text x="92" y="148" text-anchor="middle" font-size="10" fill="#92400e">Opcode (8 bits)</text>
+
+        <rect id="hex-reg" x="158" y="108" width="105" height="52" rx="7" fill="#ede9fe" stroke="#7c3aed" stroke-width="2.5"/>
+        <text x="210" y="128" text-anchor="middle" font-size="13" font-weight="700" fill="#3b0764">0x01</text>
+        <text x="210" y="148" text-anchor="middle" font-size="10" fill="#4c1d95">Reg. (8 bits)</text>
+
+        <rect id="hex-operand" x="276" y="108" width="120" height="52" rx="7" fill="#dbeafe" stroke="#3b82f6" stroke-width="2.5"/>
+        <text x="336" y="128" text-anchor="middle" font-size="13" font-weight="700" fill="#1e3a8a">0x0200</text>
+        <text x="336" y="148" text-anchor="middle" font-size="10" fill="#1e40af">Operando (16 bits)</text>
+
+        <!-- ── Binario 32 bits ── -->
+        <text x="40" y="196" font-size="11" font-weight="700" fill="#4338ca">Representación binaria (32 bits):</text>
+
+        <rect id="bin-opcode" x="40" y="210" width="105" height="68" rx="7" fill="#fef9c3" stroke="#eab308" stroke-width="2.5"/>
+        <text x="92" y="233" text-anchor="middle" font-size="9" font-family="'Courier New'" fill="#713f12" font-weight="700">0010 0000</text>
+        <text x="92" y="250" text-anchor="middle" font-size="8" fill="#92400e">bits 31–24</text>
+        <text x="92" y="268" text-anchor="middle" font-size="11" fill="#713f12" font-weight="700">LOAD</text>
+
+        <rect id="bin-reg" x="158" y="210" width="105" height="68" rx="7" fill="#ede9fe" stroke="#7c3aed" stroke-width="2.5"/>
+        <text x="210" y="233" text-anchor="middle" font-size="9" font-family="'Courier New'" fill="#3b0764" font-weight="700">0000 0001</text>
+        <text x="210" y="250" text-anchor="middle" font-size="8" fill="#4c1d95">bits 23–16</text>
+        <text x="210" y="268" text-anchor="middle" font-size="11" fill="#3b0764" font-weight="700">R1</text>
+
+        <rect id="bin-operand" x="276" y="210" width="120" height="68" rx="7" fill="#dbeafe" stroke="#3b82f6" stroke-width="2.5"/>
+        <text x="336" y="228" text-anchor="middle" font-size="9" font-family="'Courier New'" fill="#1e3a8a" font-weight="700">0000 0010</text>
+        <text x="336" y="243" text-anchor="middle" font-size="9" font-family="'Courier New'" fill="#1e3a8a" font-weight="700">0000 0000</text>
+        <text x="336" y="258" text-anchor="middle" font-size="8" fill="#1e40af">bits 15–0</text>
+        <text x="336" y="272" text-anchor="middle" font-size="11" fill="#1e3a8a" font-weight="700">Dirección</text>
+
+        <!-- ── Instrucción ensamblador ── -->
+        <text x="40" y="315" font-size="11" font-weight="700" fill="#4338ca">Instrucción ensamblador:</text>
+        <rect x="40" y="328" width="356" height="60" rx="8" fill="#ede9fe" stroke="#7c3aed" stroke-width="2.5"/>
+        <text x="218" y="366" text-anchor="middle" font-size="16" font-weight="700" fill="#3b0764" font-family="'Courier New'">LOAD R1, 0x0200</text>
+      </g>
+
+      <!-- ══════════════════════════════════════════════
+           FLECHA  IR → CONTROL UNIT  (ancha y con etiqueta)
+           ══════════════════════════════════════════════ -->
+      <g id="arrow-ir-dec" opacity="0">
+        <line x1="415" y1="340" x2="488" y2="340" stroke="#4f46e5" stroke-width="5" marker-end="url(#m-blue)"/>
+        <rect x="416" y="318" width="68" height="20" rx="4" fill="#e0e7ff"/>
+        <text x="450" y="331" text-anchor="middle" font-size="9" font-weight="700" fill="#3730a3">instrucción</text>
+      </g>
+
+      <!-- ══════════════════════════════════════════════
+           ZONA 2: CONTROL UNIT / DECODIFICADOR  (x 500–940)
+           ══════════════════════════════════════════════ -->
+      <g id="zone-decoder">
+        <rect x="500" y="20" width="440" height="640" rx="14" fill="#f0f4ff" stroke="#a5b4fc" stroke-width="2.5"/>
+        <text x="720" y="56" text-anchor="middle" font-size="15" font-weight="700" fill="#3730a3">CONTROL UNIT</text>
+        <text x="720" y="76" text-anchor="middle" font-size="11" fill="#5b21b6">(Decodificador de instrucciones)</text>
+
+        <!-- ── Extracción de campos ── -->
+        <g id="decode-extract" opacity="0">
+          <text x="720" y="112" text-anchor="middle" font-size="11" font-weight="600" fill="#4338ca">① Extracción de campos</text>
+
+          <rect id="extract-opcode" x="510" y="122" width="120" height="55" rx="7" fill="#fef9c3" stroke="#eab308" stroke-width="2.5"/>
+          <text x="570" y="143" text-anchor="middle" font-size="12" font-weight="700" fill="#713f12">0x20</text>
+          <text x="570" y="160" text-anchor="middle" font-size="10" fill="#92400e">Opcode</text>
+          <text x="570" y="172" text-anchor="middle" font-size="9" fill="#92400e">(bits 31–24)</text>
+
+          <rect id="extract-reg" x="650" y="122" width="120" height="55" rx="7" fill="#ede9fe" stroke="#7c3aed" stroke-width="2.5"/>
+          <text x="710" y="143" text-anchor="middle" font-size="12" font-weight="700" fill="#3b0764">0x01</text>
+          <text x="710" y="160" text-anchor="middle" font-size="10" fill="#4c1d95">Reg. destino</text>
+          <text x="710" y="172" text-anchor="middle" font-size="9" fill="#4c1d95">(bits 23–16)</text>
+
+          <rect id="extract-operand" x="790" y="122" width="135" height="55" rx="7" fill="#dbeafe" stroke="#3b82f6" stroke-width="2.5"/>
+          <text x="857" y="143" text-anchor="middle" font-size="12" font-weight="700" fill="#1e3a8a">0x0200</text>
+          <text x="857" y="160" text-anchor="middle" font-size="10" fill="#1e40af">Operando</text>
+          <text x="857" y="172" text-anchor="middle" font-size="9" fill="#1e40af">(bits 15–0)</text>
+        </g>
+
+        <!-- ── Traducción opcode ── -->
+        <g id="decode-translate" opacity="0">
+          <text x="720" y="215" text-anchor="middle" font-size="11" font-weight="600" fill="#4338ca">② Traducción del opcode</text>
+          <rect x="515" y="225" width="410" height="65" rx="8" fill="#fff8dc" stroke="#fbbf24" stroke-width="2.5"/>
+          <text x="720" y="252" text-anchor="middle" font-size="15" font-weight="700" fill="#78350f">0x20  →  LOAD</text>
+          <text x="720" y="278" text-anchor="middle" font-size="11" fill="#92400e">(Cargar dato de memoria a registro)</text>
+        </g>
+
+        <!-- ── Identificación de registros ── -->
+        <g id="decode-identify" opacity="0">
+          <text x="720" y="326" text-anchor="middle" font-size="11" font-weight="600" fill="#4338ca">③ Identificación de registros</text>
+          <rect x="515" y="336" width="410" height="70" rx="8" fill="#e0e7ff" stroke="#6366f1" stroke-width="2.5"/>
+          <text x="720" y="362" text-anchor="middle" font-size="12" font-weight="600" fill="#1e1b4b">Destino: R1  (escribe resultado aquí)</text>
+          <text x="720" y="390" text-anchor="middle" font-size="12" fill="#1e1b4b">Operando: dirección 0x0200 en RAM</text>
+        </g>
+
+        <!-- ── Señales de control ── -->
+        <g id="decode-summary" opacity="0">
+          <rect x="515" y="440" width="410" height="190" rx="10" fill="#dcfce7" stroke="#16a34a" stroke-width="2.5"/>
+          <text x="720" y="468" text-anchor="middle" font-size="13" font-weight="700" fill="#166534">④ Señales de Control generadas</text>
+          <text x="720" y="494" text-anchor="middle" font-size="11" fill="#14532d">✓  RegFile → Escribir en R1</text>
+          <text x="720" y="516" text-anchor="middle" font-size="11" fill="#14532d">✓  ALU → Modo LOAD (pasar dato)</text>
+          <text x="720" y="538" text-anchor="middle" font-size="11" fill="#14532d">✓  Operando 0x0200 cargado en bus</text>
+          <text x="720" y="560" text-anchor="middle" font-size="11" fill="#14532d">✓  Siguiente fase: EXECUTE</text>
+          <text x="720" y="582" text-anchor="middle" font-size="11" fill="#14532d">✓  PC++ preparado</text>
+        </g>
+      </g>
+
+      <!-- ══════════════════════════════════════════════
+           FLECHA  CONTROL UNIT → DATAPATH
+           ══════════════════════════════════════════════ -->
+      <g id="arrow-dec-dp" opacity="0">
+        <line x1="945" y1="420" x2="1018" y2="420" stroke="#ea580c" stroke-width="5" marker-end="url(#m-orange)"/>
+        <rect x="946" y="396" width="68" height="20" rx="4" fill="#ffedd5"/>
+        <text x="980" y="409" text-anchor="middle" font-size="9" font-weight="700" fill="#9a3412">ctrl signals</text>
+      </g>
+
+      <!-- ══════════════════════════════════════════════
+           ZONA 3: DATAPATH  (x 1030–1380)
+           ══════════════════════════════════════════════ -->
+      <g id="zone-datapath">
+        <rect x="1030" y="20" width="350" height="640" rx="14" fill="#f0fdf4" stroke="#86efac" stroke-width="2.5"/>
+        <text x="1205" y="56" text-anchor="middle" font-size="15" font-weight="700" fill="#166534">DATAPATH</text>
+        <text x="1205" y="76" text-anchor="middle" font-size="11" fill="#16a34a">(Configuración para EXECUTE)</text>
+
+        <!-- Register File -->
+        <rect x="1045" y="95" width="320" height="125" rx="10" fill="#dcfce7" stroke="#4ade80" stroke-width="2"/>
+        <text x="1205" y="120" text-anchor="middle" font-size="12" font-weight="700" fill="#166534">Register File</text>
+
+        <rect id="reg-r0" x="1058" y="134" width="68" height="45" rx="6" fill="#e9d5ff" stroke="#7c3aed" stroke-width="1.5"/>
+        <text x="1092" y="162" text-anchor="middle" font-size="11" font-weight="600" fill="#3b0764">R0</text>
+
+        <rect id="reg-r1" x="1146" y="134" width="68" height="45" rx="6" fill="#e9d5ff" stroke="#7c3aed" stroke-width="1.5"/>
+        <text x="1180" y="162" text-anchor="middle" font-size="11" font-weight="600" fill="#3b0764">R1</text>
+
+        <rect id="reg-r2" x="1234" y="134" width="68" height="45" rx="6" fill="#e9d5ff" stroke="#7c3aed" stroke-width="1.5"/>
+        <text x="1268" y="162" text-anchor="middle" font-size="11" font-weight="600" fill="#3b0764">R2</text>
+
+        <rect id="r1-highlight" x="1146" y="134" width="68" height="45" rx="6" fill="none" stroke="#16a34a" stroke-width="3.5" opacity="0"/>
+        <text id="r1-dest-label" x="1180" y="200" text-anchor="middle" font-size="10" font-weight="700" fill="#16a34a" opacity="0">▲ Destino</text>
+
+        <!-- ALU -->
+        <rect x="1045" y="240" width="320" height="125" rx="10" fill="#fef9c3" stroke="#fbbf24" stroke-width="2"/>
+        <text x="1205" y="268" text-anchor="middle" font-size="12" font-weight="700" fill="#713f12">ALU</text>
+        <text id="alu-operation" x="1205" y="296" text-anchor="middle" font-size="13" font-weight="700" fill="#92400e" opacity="0">Modo: LOAD</text>
+        <text id="alu-status" x="1205" y="318" text-anchor="middle" font-size="10" fill="#713f12" opacity="0">(pasar dato sin operar)</text>
+        <text x="1205" y="348" text-anchor="middle" font-size="10" fill="#b45309" opacity="0">Esperando fase EXECUTE</text>
+
+        <!-- Operando -->
+        <rect x="1045" y="390" width="320" height="130" rx="10" fill="#dbeafe" stroke="#3b82f6" stroke-width="2"/>
+        <text x="1205" y="418" text-anchor="middle" font-size="12" font-weight="700" fill="#1e3a8a">Operando / Dirección</text>
+        <text id="operand-value" x="1205" y="456" text-anchor="middle" font-size="22" font-weight="700" fill="#0c4a6e" font-family="'Courier New'" opacity="0">0x0200</text>
+        <text id="operand-info" x="1205" y="484" text-anchor="middle" font-size="10" fill="#1e40af" opacity="0">Dirección RAM — lista para EXECUTE</text>
+        <text id="operand-bus" x="1205" y="504" text-anchor="middle" font-size="10" fill="#1e40af" opacity="0">Bus de datos configurado ✓</text>
+      </g>
+
+    </svg>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#fef9c3;border:2px solid #eab308"></div> Opcode</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#ede9fe;border:2px solid #7c3aed"></div> Registro</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#dbeafe;border:2px solid #3b82f6"></div> Operando</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#fef9c3;border:2px solid #eab308"></div> ALU</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#dcfce7;border:2px solid #16a34a"></div> Señales Control</div>
+  </div>
+
+  <div id="step-description">Presiona <strong>Reproducir</strong> para ver cómo se decodifica la instrucción.</div>
+
+  <div id="controls">
+    <button id="btn-prev" disabled>← Anterior</button>
+    <button id="btn-play" class="primary">▶ Reproducir</button>
+    <button id="btn-pause" disabled>⏸ Pausar</button>
+    <button id="btn-next" disabled>Siguiente →</button>
+    <button id="btn-restart">↺ Reiniciar</button>
+  </div>
+
+  <div id="speed-wrap">
+    <span>Velocidad:</span>
+    <input type="range" id="speed" min="0.25" max="2" step="0.25" value="1">
+    <span id="speed-label">1×</span>
+  </div>
+</main>
+
+<footer>© Diego García — Arquitectura de Computadores</footer>
+
+<script>
+  const steps = [
+    { desc: "<strong>1. IR Activo:</strong> La instrucción 'LOAD R1, 0x200' está en el Instruction Register, desglosada en sus campos binarios y hexadecimales: Opcode (0x20 = 00100000), Registro destino (R1 = 0x01), y Operando (0x0200)." },
+    { desc: "<strong>2. Flujo a Decodificador:</strong> La instrucción se envía al Control Unit (decodificador) para su análisis completo." },
+    { desc: "<strong>3. Extracción de Campos:</strong> El decodificador extrae los tres campos principales: opcode (amarillo), registro (púrpura) y operando (azul)." },
+    { desc: "<strong>4. Traducción del Opcode:</strong> El opcode 0x20 se traduce a la operación LOAD, indicando que hay que cargar datos desde memoria." },
+    { desc: "<strong>5. Identificación de Registros:</strong> Se identifica que R1 es el registro destino donde se almacenará el resultado, y 0x0200 es la dirección a leer." },
+    { desc: "<strong>6. DECODE Completado:</strong> El datapath se configura completamente: R1 resaltado como destino, ALU en modo LOAD, operando 0x0200 listo. La siguiente fase es EXECUTE." }
+  ];
+
+  let currentStep = -1;
+  let masterTL = null;
+  const btnPlay = document.getElementById('btn-play');
+  const btnPause = document.getElementById('btn-pause');
+  const btnPrev = document.getElementById('btn-prev');
+  const btnNext = document.getElementById('btn-next');
+  const btnRestart = document.getElementById('btn-restart');
+  const btnDark = document.getElementById('btn-dark');
+  const descEl = document.getElementById('step-description');
+  const speedSlider = document.getElementById('speed');
+  const speedLabel = document.getElementById('speed-label');
+
+  function updateRegisters(step) {
+    gsap.set(['#arrow-ir-dec', '#decode-extract', '#decode-translate', '#decode-identify',
+              '#arrow-dec-dp', '#decode-summary', '#r1-highlight', '#r1-dest-label',
+              '#alu-operation', '#alu-status', '#operand-value', '#operand-info', '#operand-bus'], { opacity: 0 });
+
+    if (step >= 1) gsap.set('#arrow-ir-dec', { opacity: 1 });
+    if (step >= 2) gsap.set('#decode-extract', { opacity: 1 });
+    if (step >= 3) gsap.set('#decode-translate', { opacity: 1 });
+    if (step >= 4) gsap.set('#decode-identify', { opacity: 1 });
+    if (step >= 5) {
+      gsap.set('#arrow-dec-dp', { opacity: 1 });
+      gsap.set('#decode-summary', { opacity: 1 });
+      gsap.set('#r1-highlight', { opacity: 1 });
+      gsap.set('#r1-dest-label', { opacity: 1 });
+      gsap.set('#alu-operation', { opacity: 1 });
+      gsap.set('#alu-status', { opacity: 1 });
+      gsap.set('#operand-value', { opacity: 1 });
+      gsap.set('#operand-info', { opacity: 1 });
+      gsap.set('#operand-bus', { opacity: 1 });
+    }
+  }
+
+  function setStep(i) {
+    currentStep = i;
+    if (steps[i]) descEl.innerHTML = steps[i].desc;
+    btnPrev.disabled = i <= 0;
+    btnNext.disabled = i >= steps.length - 1;
+    updateRegisters(i);
+  }
+
+  function buildTimeline() {
+    if (masterTL) masterTL.kill();
+    updateRegisters(-1);
+    masterTL = gsap.timeline({ paused: true });
+
+    // Paso 0: IR activo — pulsos en los campos
+    masterTL
+      .addLabel('paso-0')
+      .call(() => setStep(0))
+      .to('#hex-opcode', { attr: { fill: '#fbbf24', stroke: '#d97706' }, duration: 0.3 })
+      .to('#hex-opcode', { attr: { fill: '#fef9c3', stroke: '#eab308' }, duration: 0.25 }, '+=0.15')
+      .to('#hex-reg', { attr: { fill: '#fbbf24', stroke: '#d97706' }, duration: 0.3 }, '<0.2')
+      .to('#hex-reg', { attr: { fill: '#ede9fe', stroke: '#7c3aed' }, duration: 0.25 }, '+=0.15')
+      .to('#hex-operand', { attr: { fill: '#fbbf24', stroke: '#d97706' }, duration: 0.3 }, '<0.2')
+      .to('#hex-operand', { attr: { fill: '#dbeafe', stroke: '#3b82f6' }, duration: 0.25 }, '+=0.15')
+      .addPause()
+
+    // Paso 1: Flecha IR → Decoder
+      .addLabel('paso-1')
+      .call(() => setStep(1))
+      .to('#arrow-ir-dec', { opacity: 1, duration: 0.6, ease: 'power2.out' })
+      .addPause()
+
+    // Paso 2: Extracción de campos en el Control Unit
+      .addLabel('paso-2')
+      .call(() => setStep(2))
+      .to('#decode-extract', { opacity: 1, duration: 0.5, ease: 'back.out(1.2)' })
+      .to('#extract-opcode', { y: -10, duration: 0.3, ease: 'back.out(1.2)' }, '<0.2')
+      .to('#extract-reg', { y: -10, duration: 0.3, ease: 'back.out(1.2)' }, '<0.1')
+      .to('#extract-operand', { y: -10, duration: 0.3, ease: 'back.out(1.2)' }, '<0.1')
+      .addPause()
+
+    // Paso 3: Traducción del Opcode
+      .addLabel('paso-3')
+      .call(() => setStep(3))
+      .to('#decode-translate', { opacity: 1, duration: 0.5, ease: 'back.out(1.2)' })
+      .to('#decode-translate rect', { attr: { fill: '#fff8dc' }, duration: 0.3 }, '<0.2')
+      .addPause()
+
+    // Paso 4: Identificación de registros
+      .addLabel('paso-4')
+      .call(() => setStep(4))
+      .to('#decode-identify', { opacity: 1, duration: 0.5, ease: 'back.out(1.2)' })
+      .addPause()
+
+    // Paso 5: Datapath configurado — señales y componentes activos
+      .addLabel('paso-5')
+      .call(() => setStep(5))
+      .to('#arrow-dec-dp', { opacity: 1, duration: 0.6, ease: 'power2.out' })
+      .to('#decode-summary', { opacity: 1, duration: 0.5, ease: 'back.out(1.2)' }, '<0.2')
+      .to('#r1-highlight', { opacity: 1, duration: 0.4, ease: 'back.out(1.2)' }, '<0.1')
+      .to('#r1-dest-label', { opacity: 1, duration: 0.3 }, '<')
+      .to('#alu-operation', { opacity: 1, duration: 0.4, ease: 'back.out(1.2)' }, '<0.1')
+      .to('#alu-status', { opacity: 1, duration: 0.3 }, '<')
+      .to('#operand-value', { opacity: 1, duration: 0.4, ease: 'back.out(1.2)' }, '<0.1')
+      .to('#operand-info', { opacity: 1, duration: 0.3 }, '<')
+      .to('#operand-bus', { opacity: 1, duration: 0.3 }, '<0.1')
+      .to('#decode-summary', { scale: 1.02, duration: 0.25, yoyo: true, repeat: 2, transformOrigin: '50% 50%' }, '+=0.4');
+
+    return masterTL;
+  }
+
+  btnDark.addEventListener('click', () => {
+    const isDark = document.body.classList.toggle('dark');
+    btnDark.textContent = isDark ? '☀️ Modo Claro' : '🌙 Modo Oscuro';
+  });
+
+  btnPlay.addEventListener('click', () => {
+    if (!masterTL || masterTL.progress() === 0) buildTimeline();
+    masterTL.timeScale(parseFloat(speedSlider.value));
+    masterTL.play();
+    btnPlay.disabled = true;
+    btnPause.disabled = false;
+    btnNext.disabled = false;
+  });
+
+  btnPause.addEventListener('click', () => {
+    masterTL.pause();
+    btnPlay.disabled = false;
+    btnPause.disabled = true;
+  });
+
+  btnPrev.addEventListener('click', () => {
+    if (currentStep > 0) {
+      masterTL.pause();
+      masterTL.seek(`paso-${currentStep - 1}`);
+      setStep(currentStep - 1);
+    }
+  });
+
+  btnNext.addEventListener('click', () => {
+    if (currentStep < steps.length - 1) {
+      masterTL.pause();
+      masterTL.seek(`paso-${currentStep + 1}`);
+      setStep(currentStep + 1);
+    }
+  });
+
+  btnRestart.addEventListener('click', () => {
+    buildTimeline();
+    currentStep = -1;
+    descEl.innerHTML = 'Presiona <strong>Reproducir</strong> para ver cómo se decodifica la instrucción.';
+    btnPlay.disabled = false;
+    btnPause.disabled = true;
+    btnPrev.disabled = true;
+    btnNext.disabled = true;
+  });
+
+  speedSlider.addEventListener('input', () => {
+    const v = parseFloat(speedSlider.value);
+    speedLabel.textContent = v + '×';
+    if (masterTL) masterTL.timeScale(v);
+  });
+
+  buildTimeline();
+</script>
+</body>
+</html>

@@ -1,0 +1,1536 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simulador Interactivo del Riñón Humano 3D</title>
+  
+  <!-- SEO Meta Tags -->
+  <meta name="description" content="Una simulación interactiva en 3D del riñón humano para clases de biología y medicina. Aprende su anatomía interna, filtración glomerular y flujo urinario.">
+  <meta name="keywords" content="riñón 3d, anatomía renal, simulador médico, three.js, biología interactiva, moodle espoch">
+  <meta name="author" content="Antigravity AI">
+
+  <!-- Google Fonts & FontAwesome -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Three.js CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <!-- OrbitControls CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+  <style>
+    :root {
+      --bg-dark: #060814;
+      --card-bg: rgba(15, 23, 42, 0.45);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      
+      --color-artery: #ef4444;
+      --color-vein: #2563eb;
+      --color-cortex: #883e3e;
+      --color-medulla: #b94a4a;
+      --color-pelvis: #e2d1b3;
+      --color-ureter: #eab308;
+      --color-accent: #06b6d4;
+      --color-accent-glow: rgba(6, 182, 212, 0.4);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: 'Outfit', sans-serif;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    /* Grid overlay for technical/lab style */
+    .lab-grid {
+      position: absolute;
+      inset: 0;
+      background-image: 
+        linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .radial-glow {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 50% 50%, rgba(15, 23, 42, 0) 20%, var(--bg-dark) 85%);
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    #canvas-container {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      z-index: 2;
+    }
+
+    /* HUD Elements */
+    .hud-element {
+      position: absolute;
+      z-index: 10;
+      backdrop-filter: blur(16px) saturate(180%);
+      -webkit-backdrop-filter: blur(16px) saturate(180%);
+      background-color: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* Header */
+    header.hud-element {
+      top: 20px;
+      left: 20px;
+      padding: 16px 24px;
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
+    }
+
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-kidney {
+      color: var(--color-accent);
+      font-size: 1.5rem;
+      text-shadow: 0 0 10px var(--color-accent-glow);
+    }
+
+    header h1 {
+      font-size: 1.25rem;
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      background: linear-gradient(135deg, #fff 40%, var(--text-muted));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    header p {
+      font-size: 0.75rem;
+      color: var(--color-accent);
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-top: 2px;
+    }
+
+    /* Info Panel */
+    .info-panel {
+      top: 20px;
+      right: 20px;
+      width: 380px;
+      max-height: calc(100vh - 180px);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+      overflow-y: auto;
+    }
+
+    .badge-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .oxygen-badge {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .oxygen-badge.oxygenated {
+      background-color: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #fca5a5;
+    }
+
+    .oxygen-badge.deoxygenated {
+      background-color: rgba(37, 99, 235, 0.15);
+      border: 1px solid rgba(37, 99, 235, 0.3);
+      color: #93c5fd;
+    }
+
+    .oxygen-badge.none {
+      background-color: rgba(148, 163, 184, 0.15);
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      color: #cbd5e1;
+    }
+
+    .id-tag {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--color-accent);
+      background: rgba(6, 182, 212, 0.1);
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid rgba(6, 182, 212, 0.2);
+    }
+
+    .info-title {
+      font-size: 1.75rem;
+      font-weight: 700;
+      line-height: 1.2;
+      color: #fff;
+    }
+
+    .info-divider {
+      height: 1px;
+      background: linear-gradient(90deg, rgba(255, 255, 255, 0.1), transparent);
+    }
+
+    .info-desc {
+      font-size: 0.9rem;
+      line-height: 1.6;
+      color: var(--text-muted);
+    }
+
+    .info-data {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .data-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .data-label {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .data-value {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .instruction-tip {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      background: rgba(6, 182, 212, 0.06);
+      border: 1px solid rgba(6, 182, 212, 0.15);
+      padding: 12px;
+      border-radius: 8px;
+      color: #a5f3fc;
+      font-size: 0.8rem;
+      line-height: 1.4;
+    }
+
+    /* Control Panel */
+    .control-panel {
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    }
+
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .control-btn {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      color: var(--text-muted);
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-size: 0.95rem;
+    }
+
+    .control-btn:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+
+    .control-btn.active {
+      background: rgba(6, 182, 212, 0.15);
+      border-color: var(--color-accent);
+      color: #fff;
+      box-shadow: 0 0 10px rgba(6, 182, 212, 0.25);
+    }
+
+    .slider-container {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      width: 140px;
+    }
+
+    .slider-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .slider-header span.value {
+      font-weight: 700;
+      color: var(--color-accent);
+    }
+
+    .flow-slider {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(255, 255, 255, 0.1);
+      outline: none;
+    }
+
+    .flow-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--color-accent);
+      box-shadow: 0 0 6px var(--color-accent-glow);
+      cursor: pointer;
+      transition: transform 0.1s ease;
+    }
+
+    .flow-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.3);
+    }
+
+    .toggle-switch-container {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .toggle-label {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .toggle-buttons {
+      display: flex;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      padding: 2px;
+      gap: 2px;
+    }
+
+    .toggle-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .toggle-btn.active {
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    /* Moodle Embed Support */
+    .moodle-instructions {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .moodle-logo {
+      width: 32px;
+      height: 32px;
+      background: #f98012;
+      color: white;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 1.1rem;
+      box-shadow: 0 4px 10px rgba(249, 128, 18, 0.3);
+    }
+
+    /* Reticle for visual guidance */
+    .reticle {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 20px;
+      height: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 1;
+      opacity: 0.5;
+    }
+
+    /* Responsive */
+    @media (max-width: 1024px) {
+      .info-panel {
+        width: 320px;
+      }
+      .control-panel {
+        width: calc(100% - 40px);
+        flex-wrap: wrap;
+        gap: 16px;
+        justify-content: center;
+      }
+    }
+
+    @media (max-width: 768px) {
+      header.hud-element {
+        width: calc(100% - 40px);
+        left: 20px;
+        right: 20px;
+      }
+      .info-panel {
+        position: relative;
+        top: auto;
+        right: auto;
+        width: calc(100% - 40px);
+        margin: 120px 20px 20px 20px;
+        max-height: 250px;
+      }
+      .control-panel {
+        position: relative;
+        bottom: auto;
+        left: auto;
+        transform: none;
+        width: calc(100% - 40px);
+        margin: 0 20px 20px 20px;
+      }
+      body {
+        overflow-y: auto;
+        height: auto;
+      }
+      #canvas-container {
+        position: fixed;
+        height: 60vh;
+        top: 0;
+      }
+      .main-overlay-wrapper {
+        margin-top: 60vh;
+        display: flex;
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="lab-grid"></div>
+  <div class="radial-glow"></div>
+
+  <div id="canvas-container"></div>
+  <div class="reticle"></div>
+
+  <div class="main-overlay-wrapper">
+    <!-- Header Title -->
+    <header class="hud-element">
+      <div class="logo-container">
+        <i class="fa-solid fa-lungs logo-kidney"></i>
+        <div>
+          <h1>Riñón Humano 3D</h1>
+          <p>Fisiología y Anatomía Renal</p>
+        </div>
+      </div>
+    </header>
+
+    <!-- Info Panel -->
+    <aside class="hud-element info-panel" id="info-panel">
+      <!-- Default instruction shown before click -->
+      <div id="info-default">
+        <h2 class="info-title" style="font-size: 1.4rem; margin-bottom: 12px;">Exploración del Riñón</h2>
+        <p class="info-desc" style="margin-bottom: 16px;">
+          Esta simulación muestra un modelo anatómico interactivo en 3D del riñón humano, el principal órgano filtrador del cuerpo.
+        </p>
+        <div class="instruction-tip">
+          <i class="fa-solid fa-circle-info" style="font-size: 1.1rem;"></i>
+          <span>Arrastra para rotar la vista 3D. Haz clic sobre cualquier parte del riñón para visualizar su nombre, función e importancia en el sistema urinario.</span>
+        </div>
+      </div>
+
+      <!-- Structure Detail (Hidden by default) -->
+      <div id="info-detail" style="display: none;">
+        <div class="badge-row">
+          <span class="id-tag" id="part-id">PART-001</span>
+          <span class="oxygen-badge none" id="part-oxygen"><i class="fa-solid fa-circle"></i> General</span>
+        </div>
+        <h2 class="info-title" id="part-name">Estructura</h2>
+        <div class="info-divider"></div>
+        <p class="info-desc" id="part-desc">
+          Detalles de la estructura anatómica...
+        </p>
+        <div class="info-divider"></div>
+        <div class="info-data">
+          <div class="data-item">
+            <span class="data-label">Presión / Actividad</span>
+            <div class="data-value" id="part-pressure">Normal</div>
+          </div>
+          <div class="data-item">
+            <span class="data-label">Función Principal</span>
+            <div class="data-value" id="part-function">Filtración</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Control Panel -->
+    <footer class="hud-element control-panel">
+      <!-- Active Hum & Audio -->
+      <div class="control-group">
+        <button class="control-btn" id="btn-audio" title="Activar Sonido de Filtrado">
+          <i class="fa-solid fa-volume-mute"></i>
+        </button>
+      </div>
+
+      <!-- Flow Velocity Slider -->
+      <div class="slider-container">
+        <div class="slider-header">
+          <span>Velocidad</span>
+          <span class="value" id="flow-value">Normal</span>
+        </div>
+        <input type="range" min="0" max="200" value="100" class="flow-slider" id="flow-slider">
+      </div>
+
+      <!-- View Mode Toggle -->
+      <div class="control-group">
+        <div class="toggle-switch-container">
+          <span class="toggle-label">Modo Visual</span>
+          <div class="toggle-buttons">
+            <button class="toggle-btn active" id="mode-anatomical">Anatomía</button>
+            <button class="toggle-btn" id="mode-corte">Corte Sagital</button>
+            <button class="toggle-btn" id="mode-xray">Rayos X</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Flow Particles Toggle -->
+      <button class="control-btn active" id="btn-flow" title="Mostrar/Ocultar Flujo de Líquidos">
+        <i class="fa-solid fa-route"></i>
+      </button>
+    </footer>
+
+    <!-- Moodle Snip Helper -->
+    <div class="moodle-instructions" style="z-index: 10;">
+      <div class="moodle-logo" title="Recurso Listo para ESPOCH Moodle">M</div>
+      <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 500;">Listo para Moodle</span>
+    </div>
+  </div>
+
+  <script>
+    // Anatomical Data Object
+    const kidneyData = {
+      corteza_anterior: {
+        name: "Corteza Renal (Cara Anterior)",
+        oxygen: "none",
+        id: "RK-01a",
+        desc: "La capa externa protectora del riñón. En el modo anatómico cubre el interior. Contiene cerca de un millón de nefronas (glomérulos y túbulos contorneados) encargados de realizar la filtración primaria de la sangre.",
+        pressure: "Presión Glomerular (~55 mmHg)",
+        func: "Filtración ultra-rápida y protección",
+        color: "#883e3e"
+      },
+      corteza_posterior: {
+        name: "Corteza Renal (Capa Externa)",
+        oxygen: "none",
+        id: "RK-01b",
+        desc: "La base estructural y externa del riñón. Aloja la red vascular y los corpúsculos renales. Se mantiene firme para sostener las estructuras de reabsorción interna.",
+        pressure: "Filtración activa",
+        func: "Protección y filtrado glomerular",
+        color: "#732c2c"
+      },
+      medula_grupo: {
+        name: "Médula Renal (Pirámides de Malpighi)",
+        oxygen: "none",
+        id: "RK-02",
+        desc: "La región interna conformada por pirámides renales. Contiene las asas de Henle y los túbulos colectores donde se reabsorbe agua y solutos, concentrando los desechos en orina para verterlos en el cáliz.",
+        pressure: "Gradiente osmótico alto",
+        func: "Reabsorción de agua y sales",
+        color: "#b94a4a"
+      },
+      pelvis: {
+        name: "Pelvis Renal",
+        oxygen: "none",
+        id: "RK-03",
+        desc: "Embudo colector central de color blanco-amarillento. Recibe la orina recién formada de los cálices mayores y menores y la emboca hacia el uréter por gravedad y contracciones peristálticas.",
+        pressure: "Baja presión hidrostática",
+        func: "Recolección y conducción urinaria",
+        color: "#e2d1b3"
+      },
+      arteria: {
+        name: "Arteria Renal",
+        oxygen: "oxygenated",
+        id: "RK-04",
+        desc: "Rama principal de la aorta abdominal que introduce sangre cargada con oxígeno y toxinas a alta presión hacia el riñón para su purificación metabólica constante.",
+        pressure: "Presión Sistémica (~100 mmHg)",
+        func: "Aporte sanguíneo y filtración",
+        color: "#ef4444"
+      },
+      vena: {
+        name: "Vena Renal",
+        oxygen: "deoxygenated",
+        id: "RK-05",
+        desc: "Vaso de retorno que conduce la sangre desoxigenada y ya purificada (con bajísima concentración de urea y sales) hacia la vena cava inferior de camino de vuelta al corazón.",
+        pressure: "Baja presión (~5 mmHg)",
+        func: "Retorno sistémico purificado",
+        color: "#2563eb"
+      },
+      ureter: {
+        name: "Uréter",
+        oxygen: "none",
+        id: "RK-06",
+        desc: "Conducto largo y muscular que transporta la orina desde la pelvis renal hasta la vejiga mediante ondas peristálticas activas, evitando reflujos perjudiciales hacia el riñón.",
+        pressure: "Peristalsis activa",
+        func: "Transporte de orina a la vejiga",
+        color: "#eab308"
+      }
+    };
+
+    class KidneySimulation {
+      constructor(containerId) {
+        this.container = document.getElementById(containerId);
+        this.animationFrameId = null;
+        this.clock = new THREE.Clock();
+        
+        // Simulation State
+        this.flowSpeedMultiplier = 1.0;
+        this.audioEnabled = false;
+        this.renderMode = 'anatomical'; // 'anatomical', 'corte', 'xray'
+        this.showFlow = true;
+        this.selectedPart = null;
+        this.hoveredPart = null;
+
+        // Audio Engine
+        this.audioCtx = null;
+        this.humNode = null;
+        this.lfoNode = null;
+
+        // Initialized Groups
+        this.kidneyGroup = new THREE.Group();
+        this.flowGroup = new THREE.Group();
+        
+        this.init();
+      }
+
+      init() {
+        // Scene setup
+        this.scene = new THREE.Scene();
+        this.scene.background = null;
+
+        // Camera setup
+        this.camera = new THREE.PerspectiveCamera(
+          45,
+          this.container.clientWidth / this.container.clientHeight,
+          0.1,
+          50
+        );
+        this.camera.position.set(0, 0, 7.5);
+
+        // Renderer Setup
+        this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        this.renderer.shadowMap.enabled = true;
+        this.container.appendChild(this.renderer.domElement);
+
+        // Orbit Controls
+        this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
+        this.controls.enableDamping = true;
+        this.controls.dampingFactor = 0.05;
+        this.controls.maxDistance = 15;
+        this.controls.minDistance = 3.5;
+
+        // Lights
+        this.setupLights();
+
+        // Build kidney models
+        this.buildKidneyModel();
+        this.scene.add(this.kidneyGroup);
+
+        // Setup paths and flowing particles
+        this.setupFlowParticles();
+        this.scene.add(this.flowGroup);
+
+        // Raycasting
+        this.raycaster = new THREE.Raycaster();
+        this.pointer = new THREE.Vector2();
+
+        // Handlers
+        this.resizeHandler = this.onResize.bind(this);
+        this.pointerDownHandler = this.onPointerDown.bind(this);
+        this.pointerMoveHandler = this.onPointerMove.bind(this);
+
+        window.addEventListener('resize', this.resizeHandler);
+        this.renderer.domElement.addEventListener('pointerdown', this.pointerDownHandler);
+        this.renderer.domElement.addEventListener('pointermove', this.pointerMoveHandler);
+
+        // Start Loop
+        this.animate();
+      }
+
+      setupLights() {
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.45);
+        this.scene.add(ambientLight);
+
+        this.dirLight1 = new THREE.DirectionalLight(0xffffff, 0.85);
+        this.dirLight1.position.set(5, 5, 5);
+        this.scene.add(this.dirLight1);
+
+        this.dirLight2 = new THREE.DirectionalLight(0x06b6d4, 0.55); // Cyan backlight
+        this.dirLight2.position.set(-5, -5, -4);
+        this.scene.add(this.dirLight2);
+
+        this.pointLight = new THREE.PointLight(0x06b6d4, 0.35, 8); // internal biolum
+        this.pointLight.position.set(0, 0, 0.2);
+        this.scene.add(this.pointLight);
+      }
+
+      buildKidneyModel() {
+        this.kidneyParts = {};
+
+        // Helper: create bean half
+        // scaleX: horizontal width, scaleY: vertical length, scaleZ: thickness
+        // isAnterior: front half, if true we slice at Z=0 and capsulate it.
+        const createKidneyHalf = (scaleX, scaleY, scaleZ, isAnterior, color, partName) => {
+          // Deform a high-res sphere
+          const geo = new THREE.SphereGeometry(1, 48, 48);
+          const pos = geo.attributes.position;
+          
+          for (let i = 0; i < pos.count; i++) {
+            let x = pos.getX(i);
+            let y = pos.getY(i);
+            let z = pos.getZ(i);
+
+            // Turn into ellipsoid
+            x *= scaleX;
+            y *= scaleY;
+            z *= scaleZ;
+
+            // Apply Kidney bean concave bending along Y axis
+            // The hilum is in the inner side (we place it facing left: -X)
+            const normY = y / scaleY; // -1 to 1
+            const bendFactor = Math.cos(normY * Math.PI / 2); // maximum in middle y=0
+            x -= 0.38 * bendFactor; // Pull inwards towards -X (hilum)
+            
+            // Thin out depth z around hilum
+            z *= (1.0 - 0.22 * bendFactor);
+
+            // Sagittal cut: split by plane z=0
+            if (isAnterior) {
+              if (z < 0) z = 0;
+            } else {
+              if (z > 0) z = 0;
+            }
+
+            pos.setXYZ(i, x, y, z);
+          }
+          geo.computeVertexNormals();
+
+          const mat = new THREE.MeshStandardMaterial({
+            color: new THREE.Color(color),
+            roughness: 0.32,
+            metalness: 0.12,
+            emissive: new THREE.Color(color),
+            emissiveIntensity: 0.05,
+            side: THREE.DoubleSide
+          });
+
+          const mesh = new THREE.Mesh(geo, mat);
+          mesh.name = partName;
+          return mesh;
+        };
+
+        // 1. Corteza Posterior (base cup, stays visible)
+        const cortexPostColor = kidneyData.corteza_posterior.color;
+        const cortexPost = createKidneyHalf(0.9, 1.45, 0.7, false, cortexPostColor, "corteza_posterior");
+        cortexPost.position.set(0.3, 0, 0);
+        this.kidneyGroup.add(cortexPost);
+        this.kidneyParts.corteza_posterior = cortexPost;
+
+        // 2. Corteza Anterior (front shell, hides or goes transparent in corte mode)
+        const cortexAntColor = kidneyData.corteza_anterior.color;
+        const cortexAnt = createKidneyHalf(0.91, 1.46, 0.71, true, cortexAntColor, "corteza_anterior");
+        cortexAnt.position.set(0.3, 0, 0);
+        this.kidneyGroup.add(cortexAnt);
+        this.kidneyParts.corteza_anterior = cortexAnt;
+
+        // 3. Médula Renal (Cones acting as pyramids)
+        // Grouped inside the posterior cup, slightly above the z=0 cut plane
+        const medGroup = new THREE.Group();
+        medGroup.name = "medula_grupo";
+        const medColor = new THREE.Color(kidneyData.medula_grupo.color);
+        const pyramidGeo = new THREE.ConeGeometry(0.24, 0.45, 16);
+        const pyramidMat = new THREE.MeshStandardMaterial({
+          color: medColor,
+          roughness: 0.45,
+          metalness: 0.05,
+          emissive: medColor,
+          emissiveIntensity: 0.06
+        });
+
+        // Posiciones radiales apuntando hacia la Pelvis Renal (que está en torno a x=-0.3, y=0, z=0.05)
+        const pyramidPositions = [
+          { x: 0.6, y: 0.9, z: 0.05, rot: -Math.PI / 3 },
+          { x: 0.8, y: 0.5, z: 0.05, rot: -Math.PI / 6 },
+          { x: 0.85, y: 0.0, z: 0.05, rot: 0 },
+          { x: 0.8, y: -0.5, z: 0.05, rot: Math.PI / 6 },
+          { x: 0.6, y: -0.9, z: 0.05, rot: Math.PI / 3 },
+          // inner back ones
+          { x: 0.3, y: 0.8, z: -0.15, rot: -Math.PI / 3.5 },
+          { x: 0.4, y: -0.8, z: -0.15, rot: Math.PI / 3.5 },
+        ];
+
+        pyramidPositions.forEach((posInfo) => {
+          const mesh = new THREE.Mesh(pyramidGeo, pyramidMat);
+          mesh.position.set(posInfo.x, posInfo.y, posInfo.z);
+          // Rotate cone base to face cortex and apex to face hilum
+          mesh.rotation.z = posInfo.rot - Math.PI / 2;
+          mesh.scale.set(1, 1, 0.7); // flatten slightly in z
+          medGroup.add(mesh);
+        });
+        
+        // Add to main group and map
+        this.kidneyGroup.add(medGroup);
+        this.kidneyParts.medula_grupo = medGroup;
+        // Make individual mesh children identifiable for raycaster
+        medGroup.traverse((node) => {
+          if (node.isMesh) node.name = "medula_grupo";
+        });
+
+        // 4. Pelvis Renal (Collection system)
+        const pelvisGroup = new THREE.Group();
+        pelvisGroup.name = "pelvis";
+        const pelvisColor = new THREE.Color(kidneyData.pelvis.color);
+        const pelvisMat = new THREE.MeshStandardMaterial({
+          color: pelvisColor,
+          roughness: 0.35,
+          metalness: 0.1,
+          emissive: pelvisColor,
+          emissiveIntensity: 0.04
+        });
+
+        // Funnel center
+        const funnelGeo = new THREE.CylinderGeometry(0.12, 0.28, 0.65, 16);
+        const funnel = new THREE.Mesh(funnelGeo, pelvisMat);
+        funnel.position.set(-0.12, -0.15, 0.05);
+        funnel.rotation.z = -0.3;
+        pelvisGroup.add(funnel);
+
+        // Calyces (cálices renales, small tubes connecting to medullas)
+        const calyxGeo = new THREE.CylinderGeometry(0.06, 0.12, 0.4, 12);
+        const calyx1 = new THREE.Mesh(calyxGeo, pelvisMat);
+        calyx1.position.set(0.12, 0.42, 0.05);
+        calyx1.rotation.z = -Math.PI / 4;
+        
+        const calyx2 = new THREE.Mesh(calyxGeo, pelvisMat);
+        calyx2.position.set(0.28, 0.1, 0.05);
+        calyx2.rotation.z = -0.1;
+
+        const calyx3 = new THREE.Mesh(calyxGeo, pelvisMat);
+        calyx3.position.set(0.2, -0.45, 0.05);
+        calyx3.rotation.z = Math.PI / 3;
+
+        pelvisGroup.add(calyx1, calyx2, calyx3);
+        this.kidneyGroup.add(pelvisGroup);
+        this.kidneyParts.pelvis = pelvisGroup;
+        pelvisGroup.traverse((node) => {
+          if (node.isMesh) node.name = "pelvis";
+        });
+
+        // 5. Arteria Renal (Red entering hilum and branching)
+        const arteryGroup = new THREE.Group();
+        arteryGroup.name = "arteria";
+        const artColor = new THREE.Color(kidneyData.arteria.color);
+        const artMat = new THREE.MeshStandardMaterial({
+          color: artColor,
+          roughness: 0.28,
+          metalness: 0.15,
+          emissive: artColor,
+          emissiveIntensity: 0.08
+        });
+
+        // Main trunk
+        const artTrunkGeo = new THREE.CylinderGeometry(0.1, 0.1, 1.2, 16);
+        const artTrunk = new THREE.Mesh(artTrunkGeo, artMat);
+        artTrunk.position.set(-1.1, 0.2, 0.15);
+        artTrunk.rotation.z = Math.PI / 2.2;
+        arteryGroup.add(artTrunk);
+
+        // Subbranches going between pyramids
+        const artBranchGeo = new THREE.CylinderGeometry(0.045, 0.045, 0.55, 12);
+        const artB1 = new THREE.Mesh(artBranchGeo, artMat);
+        artB1.position.set(-0.4, 0.45, 0.1);
+        artB1.rotation.z = -0.3;
+        
+        const artB2 = new THREE.Mesh(artBranchGeo, artMat);
+        artB2.position.set(-0.25, 0.05, 0.1);
+        artB2.rotation.z = 0.2;
+
+        const artB3 = new THREE.Mesh(artBranchGeo, artMat);
+        artB3.position.set(-0.35, -0.32, 0.1);
+        artB3.rotation.z = 0.9;
+
+        arteryGroup.add(artB1, artB2, artB3);
+        this.kidneyGroup.add(arteryGroup);
+        this.kidneyParts.arteria = arteryGroup;
+        arteryGroup.traverse((node) => {
+          if (node.isMesh) node.name = "arteria";
+        });
+
+        // 6. Vena Renal (Blue leaving hilum)
+        const veinGroup = new THREE.Group();
+        veinGroup.name = "vena";
+        const veinColor = new THREE.Color(kidneyData.vena.color);
+        const veinMat = new THREE.MeshStandardMaterial({
+          color: veinColor,
+          roughness: 0.28,
+          metalness: 0.15,
+          emissive: veinColor,
+          emissiveIntensity: 0.08
+        });
+
+        // Main trunk
+        const veinTrunkGeo = new THREE.CylinderGeometry(0.11, 0.11, 1.3, 16);
+        const veinTrunk = new THREE.Mesh(veinTrunkGeo, veinMat);
+        veinTrunk.position.set(-1.15, -0.15, -0.05);
+        veinTrunk.rotation.z = Math.PI / 2.2;
+        veinGroup.add(veinTrunk);
+
+        // Subbranches
+        const veinBranchGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.6, 12);
+        const veinB1 = new THREE.Mesh(veinBranchGeo, veinMat);
+        veinB1.position.set(-0.38, 0.38, -0.05);
+        veinB1.rotation.z = -0.2;
+        
+        const veinB2 = new THREE.Mesh(veinBranchGeo, veinMat);
+        veinB2.position.set(-0.3, -0.1, -0.05);
+        veinB2.rotation.z = 0.4;
+
+        const veinB3 = new THREE.Mesh(veinBranchGeo, veinMat);
+        veinB3.position.set(-0.4, -0.45, -0.05);
+        veinB3.rotation.z = 0.8;
+
+        veinGroup.add(veinB1, veinB2, veinB3);
+        this.kidneyGroup.add(veinGroup);
+        this.kidneyParts.vena = veinGroup;
+        veinGroup.traverse((node) => {
+          if (node.isMesh) node.name = "vena";
+        });
+
+        // 7. Uréter (Yellow tube exit down)
+        const ureterGroup = new THREE.Group();
+        ureterGroup.name = "ureter";
+        const ureterColor = new THREE.Color(kidneyData.ureter.color);
+        const ureterMat = new THREE.MeshStandardMaterial({
+          color: ureterColor,
+          roughness: 0.3,
+          metalness: 0.08,
+          emissive: ureterColor,
+          emissiveIntensity: 0.05
+        });
+
+        // Curved tube modelled using cylinder parts or simple curves
+        // Let's make two connected cylinders for a nice angle
+        const urUpperGeo = new THREE.CylinderGeometry(0.08, 0.085, 0.9, 16);
+        const urUpper = new THREE.Mesh(urUpperGeo, ureterMat);
+        urUpper.position.set(-0.35, -0.85, 0.02);
+        urUpper.rotation.z = 0.4;
+        
+        const urLowerGeo = new THREE.CylinderGeometry(0.08, 0.075, 1.4, 16);
+        const urLower = new THREE.Mesh(urLowerGeo, ureterMat);
+        urLower.position.set(-0.76, -1.82, -0.02);
+        urLower.rotation.z = 0.15;
+
+        ureterGroup.add(urUpper, urLower);
+        this.kidneyGroup.add(ureterGroup);
+        this.kidneyParts.ureter = ureterGroup;
+        ureterGroup.traverse((node) => {
+          if (node.isMesh) node.name = "ureter";
+        });
+
+        // Enable shadows and setup initial state
+        this.kidneyGroup.traverse((node) => {
+          if (node.isMesh) {
+            node.castShadow = true;
+            node.receiveShadow = true;
+          }
+        });
+
+        // Start with Cortex Anterior fully solid, other internal elements visible but hidden behind it
+        this.setVisualMode('anatomical');
+      }
+
+      setupFlowParticles() {
+        this.particlePaths = [];
+
+        // Define smooth paths using CatmullRomCurve3
+        // 1. Red Blood (Arteria -> Cortex/Pyramids)
+        const artPoints = [
+          new THREE.Vector3(-1.7, 0.35, 0.15),
+          new THREE.Vector3(-0.9, 0.2, 0.15),
+          new THREE.Vector3(-0.3, 0.1, 0.1),
+          new THREE.Vector3(0.3, 0.3, 0.05),
+          new THREE.Vector3(0.7, 0.5, 0.05)
+        ];
+        const artCurve = new THREE.CatmullRomCurve3(artPoints);
+
+        // 2. Blue Blood (Cortex/Pyramids -> Vena)
+        const veinPoints = [
+          new THREE.Vector3(0.65, -0.4, 0.02),
+          new THREE.Vector3(0.2, -0.2, -0.02),
+          new THREE.Vector3(-0.3, -0.15, -0.05),
+          new THREE.Vector3(-0.9, -0.15, -0.05),
+          new THREE.Vector3(-1.7, -0.3, -0.05)
+        ];
+        const veinCurve = new THREE.CatmullRomCurve3(veinPoints);
+
+        // 3. Urine Flow (Pelvis -> Ureter)
+        const urinePoints = [
+          new THREE.Vector3(0.12, 0.42, 0.05), // Calyx upper
+          new THREE.Vector3(-0.12, -0.15, 0.05), // Pelvis center
+          new THREE.Vector3(-0.35, -0.85, 0.02), // Ureter upper
+          new THREE.Vector3(-0.76, -1.82, -0.02), // Ureter lower
+          new THREE.Vector3(-0.9, -2.5, -0.05)   // Exit bladder direction
+        ];
+        const urineCurve = new THREE.CatmullRomCurve3(urinePoints);
+
+        this.particlePaths.push({
+          curve: artCurve,
+          color: '#fca5a5', // oxygenated blood
+          count: 24,
+          particles: []
+        });
+
+        this.particlePaths.push({
+          curve: veinCurve,
+          color: '#93c5fd', // filtered blood
+          count: 24,
+          particles: []
+        });
+
+        this.particlePaths.push({
+          curve: urineCurve,
+          color: '#fef08a', // urine (yellow)
+          count: 24,
+          particles: []
+        });
+
+        // Build small sphere meshes for particles
+        const particleGeo = new THREE.SphereGeometry(0.04, 8, 8);
+
+        this.particlePaths.forEach((pathInfo) => {
+          const mat = new THREE.MeshBasicMaterial({
+            color: new THREE.Color(pathInfo.color),
+            transparent: true,
+            opacity: 0.8
+          });
+
+          for (let i = 0; i < pathInfo.count; i++) {
+            const mesh = new THREE.Mesh(particleGeo, mat);
+            // Stagger particles along progress (0 to 1)
+            const progress = i / pathInfo.count;
+            mesh.userData.progress = progress;
+            
+            const pt = pathInfo.curve.getPointAt(progress);
+            mesh.position.copy(pt);
+            
+            this.flowGroup.add(mesh);
+            pathInfo.particles.push(mesh);
+          }
+        });
+      }
+
+      initAudio() {
+        if (this.audioCtx) return;
+        this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        // Sci-Fi liquid filtration hum
+        const humOsc = this.audioCtx.createOscillator();
+        const humFilter = this.audioCtx.createBiquadFilter();
+        const humGain = this.audioCtx.createGain();
+
+        // Slow modulation (LFO) representing kidney pulse/flow
+        const lfo = this.audioCtx.createOscillator();
+        const lfoGain = this.audioCtx.createGain();
+
+        humOsc.type = 'sawtooth';
+        humOsc.frequency.setValueAtTime(68, this.audioCtx.currentTime); // low hum
+
+        humFilter.type = 'bandpass';
+        humFilter.frequency.setValueAtTime(160, this.audioCtx.currentTime);
+        humFilter.Q.setValueAtTime(4.0, this.audioCtx.currentTime);
+
+        lfo.type = 'sine';
+        lfo.frequency.setValueAtTime(0.4, this.audioCtx.currentTime); // 0.4 Hz cycle (very slow)
+        
+        lfoGain.gain.setValueAtTime(60, this.audioCtx.currentTime); // shift filter frequency up/down
+
+        // Connect LFO to filter frequency
+        lfo.connect(lfoGain);
+        lfoGain.connect(humFilter.frequency);
+
+        // Connections
+        humOsc.connect(humFilter);
+        humFilter.connect(humGain);
+        humGain.connect(this.audioCtx.destination);
+
+        humGain.gain.setValueAtTime(0.001, this.audioCtx.currentTime); // start silent
+
+        humOsc.start();
+        lfo.start();
+
+        this.humNode = humGain;
+        this.lfoNode = lfo;
+      }
+
+      triggerClickSound(freq = 440) {
+        if (!this.audioEnabled || !this.audioCtx) return;
+
+        const osc = this.audioCtx.createOscillator();
+        const gain = this.audioCtx.createGain();
+
+        osc.connect(gain);
+        gain.connect(this.audioCtx.destination);
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, this.audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(freq / 2, this.audioCtx.currentTime + 0.12);
+
+        gain.gain.setValueAtTime(0.3, this.audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.audioCtx.currentTime + 0.15);
+
+        osc.start();
+        osc.stop(this.audioCtx.currentTime + 0.16);
+      }
+
+      setAudio(enabled) {
+        this.audioEnabled = enabled;
+        if (enabled) {
+          this.initAudio();
+          if (this.audioCtx && this.audioCtx.state === 'suspended') {
+            this.audioCtx.resume();
+          }
+          if (this.humNode) {
+            // ramp up volume smoothly
+            this.humNode.gain.setValueAtTime(this.humNode.gain.value, this.audioCtx.currentTime);
+            this.humNode.gain.linearRampToValueAtTime(0.28, this.audioCtx.currentTime + 0.4);
+          }
+        } else {
+          if (this.humNode) {
+            this.humNode.gain.setValueAtTime(this.humNode.gain.value, this.audioCtx.currentTime);
+            this.humNode.gain.linearRampToValueAtTime(0.001, this.audioCtx.currentTime + 0.3);
+          }
+        }
+      }
+
+      animate() {
+        const elapsedTime = this.clock.getElapsedTime();
+        const delta = this.clock.getDelta();
+
+        // 1. Controls
+        this.controls.update();
+
+        // 2. Kidney rotation (idle movement if not interacting)
+        if (this.controls.state === -1) {
+          this.kidneyGroup.rotation.y = Math.sin(elapsedTime * 0.12) * 0.08;
+          this.flowGroup.rotation.y = this.kidneyGroup.rotation.y;
+        }
+
+        // 3. Particles Flow Animation
+        if (this.showFlow && this.flowSpeedMultiplier > 0) {
+          const step = delta * 0.08 * this.flowSpeedMultiplier;
+          
+          this.particlePaths.forEach((pathInfo) => {
+            pathInfo.particles.forEach((particle) => {
+              let progress = particle.userData.progress;
+              progress += step;
+              if (progress > 1.0) progress -= 1.0;
+              particle.userData.progress = progress;
+
+              const pt = pathInfo.curve.getPointAt(progress);
+              particle.position.copy(pt);
+              particle.visible = true;
+            });
+          });
+        } else {
+          this.particlePaths.forEach((pathInfo) => {
+            pathInfo.particles.forEach((p) => p.visible = false);
+          });
+        }
+
+        // 4. Highlight hover pulse effect
+        if (this.hoveredPart && this.hoveredPart !== this.selectedPart) {
+          this.hoveredPart.traverse((node) => {
+            if (node.isMesh) {
+              const base = this.renderMode === 'xray' ? 0.35 : 0.05;
+              node.material.emissiveIntensity = base + Math.sin(elapsedTime * 12) * 0.15;
+            }
+          });
+        }
+
+        // 5. Render
+        this.renderer.render(this.scene, this.camera);
+
+        this.animationFrameId = requestAnimationFrame(() => this.animate());
+      }
+
+      onResize() {
+        const w = this.container.clientWidth;
+        const h = this.container.clientHeight;
+        this.camera.aspect = w / h;
+        this.camera.updateProjectionMatrix();
+        this.renderer.setSize(w, h);
+      }
+
+      onPointerMove(event) {
+        const rect = this.renderer.domElement.getBoundingClientRect();
+        this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        this.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+        this.raycaster.setFromCamera(this.pointer, this.camera);
+        // Intersect all meshes in the kidneyGroup
+        const intersects = this.raycaster.intersectObjects(this.kidneyGroup.children, true);
+
+        if (intersects.length > 0) {
+          const hitObject = this.getRootPart(intersects[0].object);
+          // Don't hover if part is invisible (like corteza_anterior in corte mode)
+          if (hitObject && hitObject.visible && hitObject.material && hitObject.material.opacity > 0.05) {
+            if (this.hoveredPart !== hitObject) {
+              this.clearHover();
+              this.hoveredPart = hitObject;
+              document.body.style.cursor = 'pointer';
+            }
+            return;
+          }
+        }
+        
+        if (this.hoveredPart) {
+          this.clearHover();
+          document.body.style.cursor = 'default';
+        }
+      }
+
+      onPointerDown(event) {
+        this.raycaster.setFromCamera(this.pointer, this.camera);
+        const intersects = this.raycaster.intersectObjects(this.kidneyGroup.children, true);
+
+        if (intersects.length > 0) {
+          const hitObject = this.getRootPart(intersects[0].object);
+          if (hitObject && hitObject.visible && hitObject.material && hitObject.material.opacity > 0.05) {
+            this.selectPart(hitObject);
+          }
+        }
+      }
+
+      getRootPart(object) {
+        let current = object;
+        while (current.parent && current.parent !== this.scene && current.parent !== this.kidneyGroup) {
+          current = current.parent;
+        }
+        return current;
+      }
+
+      clearHover() {
+        if (!this.hoveredPart) return;
+        this.hoveredPart.traverse((node) => {
+          if (node.isMesh) {
+            const isSel = this.hoveredPart === this.selectedPart;
+            node.material.emissiveIntensity = isSel ? 0.38 : (this.renderMode === 'xray' ? 0.35 : 0.05);
+          }
+        });
+        this.hoveredPart = null;
+      }
+
+      selectPart(part) {
+        // Sound blip
+        this.triggerClickSound(this.selectedPart === part ? 330 : 440);
+
+        // Deselect previous
+        if (this.selectedPart) {
+          const prevMode = this.renderMode;
+          this.selectedPart.traverse((node) => {
+            if (node.isMesh) {
+              node.material.emissiveIntensity = prevMode === 'xray' ? 0.35 : 0.05;
+              node.material.opacity = (prevMode === 'corte' && node.name === "cortex_anterior") ? 0.0 : (prevMode === 'xray' ? 0.22 : 1.0);
+            }
+          });
+        }
+
+        // Click same -> deselect
+        if (this.selectedPart === part) {
+          this.selectedPart = null;
+          this.updateHUD(null);
+          this.resetVisibilities();
+          return;
+        }
+
+        this.selectedPart = part;
+        const partKey = part.name;
+        this.updateHUD(kidneyData[partKey]);
+
+        // Highlight selected, dim others
+        this.kidneyGroup.traverse((node) => {
+          if (node.isMesh) {
+            const root = this.getRootPart(node);
+            const isSel = root === this.selectedPart;
+            
+            if (isSel) {
+              node.material.emissiveIntensity = 0.45;
+              node.material.opacity = 1.0; // fully visible
+            } else {
+              // Dim down unselected elements
+              node.material.emissiveIntensity = this.renderMode === 'xray' ? 0.15 : 0.01;
+              node.material.opacity = this.renderMode === 'xray' ? 0.08 : 0.28;
+            }
+          }
+        });
+
+        // Smoothly adjust control target towards the clicked center
+        const targetPos = new THREE.Vector3();
+        part.getWorldPosition(targetPos);
+        
+        const startTarget = this.controls.target.clone();
+        const duration = 20;
+        let step = 0;
+        
+        const pan = () => {
+          if (step >= duration || !this.selectedPart) return;
+          this.controls.target.lerpVectors(startTarget, targetPos, step / duration);
+          step++;
+          requestAnimationFrame(pan);
+        };
+        pan();
+      }
+
+      resetVisibilities() {
+        const isXray = this.renderMode === 'xray';
+        const isCorte = this.renderMode === 'corte';
+
+        this.kidneyGroup.traverse((node) => {
+          if (node.isMesh) {
+            node.material.transparent = true;
+            node.material.depthWrite = true;
+
+            if (node.name === "corteza_anterior") {
+              if (isCorte) {
+                node.visible = false;
+                node.material.opacity = 0;
+              } else {
+                node.visible = true;
+                node.material.opacity = isXray ? 0.22 : 1.0;
+                node.material.depthWrite = !isXray;
+              }
+            } else {
+              node.visible = true;
+              node.material.opacity = isXray ? 0.22 : 1.0;
+              node.material.depthWrite = !isXray;
+            }
+            node.material.emissiveIntensity = isXray ? 0.35 : 0.05;
+          }
+        });
+      }
+
+      setVisualMode(mode) {
+        this.renderMode = mode;
+        this.resetVisibilities();
+        
+        // If there's a selected part, re-apply highlights
+        if (this.selectedPart) {
+          const part = this.selectedPart;
+          this.selectedPart = null;
+          this.selectPart(part);
+        }
+      }
+
+      updateHUD(data) {
+        const defPanel = document.getElementById('info-default');
+        const detPanel = document.getElementById('info-detail');
+
+        if (!data) {
+          defPanel.style.display = 'block';
+          detPanel.style.display = 'none';
+          return;
+        }
+
+        defPanel.style.display = 'none';
+        detPanel.style.display = 'block';
+
+        document.getElementById('part-id').innerText = data.id;
+        document.getElementById('part-name').innerText = data.name;
+        document.getElementById('part-desc').innerText = data.desc;
+        document.getElementById('part-pressure').innerText = data.pressure;
+        document.getElementById('part-function').innerText = data.func;
+
+        // Badge classification
+        const badge = document.getElementById('part-oxygen');
+        badge.className = `oxygen-badge ${data.oxygen}`;
+        if (data.oxygen === 'oxygenated') {
+          badge.innerHTML = `<i class="fa-solid fa-droplet"></i> Arterial (Oxigenada)`;
+        } else if (data.oxygen === 'deoxygenated') {
+          badge.innerHTML = `<i class="fa-solid fa-droplet"></i> Venosa (Filtrada)`;
+        } else {
+          badge.innerHTML = `<i class="fa-solid fa-microscope"></i> Estructural`;
+        }
+      }
+
+      destroy() {
+        if (this.animationFrameId !== null) {
+          cancelAnimationFrame(this.animationFrameId);
+        }
+
+        window.removeEventListener('resize', this.resizeHandler);
+        this.renderer.domElement.removeEventListener('pointerdown', this.pointerDownHandler);
+        this.renderer.domElement.removeEventListener('pointermove', this.pointerMoveHandler);
+
+        // Dispose WebGL memory to avoid memory leaks
+        this.kidneyGroup.traverse((node) => {
+          if (node.isMesh) {
+            node.geometry.dispose();
+            node.material.dispose();
+          }
+        });
+
+        this.flowGroup.traverse((node) => {
+          if (node.isMesh) {
+            node.geometry.dispose();
+            node.material.dispose();
+          }
+        });
+
+        this.controls.dispose();
+        this.renderer.dispose();
+
+        if (this.renderer.domElement.parentNode) {
+          this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
+        }
+
+        if (this.audioCtx) {
+          this.audioCtx.close();
+        }
+      }
+    }
+
+    // App Initialization
+    document.addEventListener('DOMContentLoaded', () => {
+      const sim = new KidneySimulation('canvas-container');
+
+      // Audio Toggle Button
+      const btnAudio = document.getElementById('btn-audio');
+      btnAudio.addEventListener('click', () => {
+        const newState = !sim.audioEnabled;
+        sim.setAudio(newState);
+        btnAudio.className = `control-btn ${newState ? 'active' : ''}`;
+        btnAudio.innerHTML = newState ? '<i class="fa-solid fa-volume-up"></i>' : '<i class="fa-solid fa-volume-mute"></i>';
+      });
+
+      // Flow velocity slider
+      const flowSlider = document.getElementById('flow-slider');
+      const flowValue = document.getElementById('flow-value');
+      flowSlider.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value);
+        sim.flowSpeedMultiplier = val / 100.0;
+        if (val === 0) {
+          flowValue.innerText = "Detenido";
+        } else if (val < 70) {
+          flowValue.innerText = "Lento";
+        } else if (val > 130) {
+          flowValue.innerText = "Rápido";
+        } else {
+          flowValue.innerText = "Normal";
+        }
+      });
+
+      // View Mode Toggles
+      const btnAnatomy = document.getElementById('mode-anatomical');
+      const btnCorte = document.getElementById('mode-corte');
+      const btnXray = document.getElementById('mode-xray');
+
+      const setBtnActive = (activeBtn) => {
+        [btnAnatomy, btnCorte, btnXray].forEach((b) => b.classList.remove('active'));
+        activeBtn.classList.add('active');
+      };
+
+      btnAnatomy.addEventListener('click', () => {
+        setBtnActive(btnAnatomy);
+        sim.setVisualMode('anatomical');
+      });
+
+      btnCorte.addEventListener('click', () => {
+        setBtnActive(btnCorte);
+        sim.setVisualMode('corte');
+      });
+
+      btnXray.addEventListener('click', () => {
+        setBtnActive(btnXray);
+        sim.setVisualMode('xray');
+      });
+
+      // Show/Hide Flow Particles
+      const btnFlow = document.getElementById('btn-flow');
+      btnFlow.addEventListener('click', () => {
+        sim.showFlow = !sim.showFlow;
+        btnFlow.className = `control-btn ${sim.showFlow ? 'active' : ''}`;
+      });
+
+      // Clean memory leak precaution
+      window.addEventListener('beforeunload', () => {
+        sim.destroy();
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="AulaLab: explora conceptos de distintas disciplinas mediante variables, visualización, evidencia y retos.">
+  <title>AulaLab · ¿Qué pasaría si…?</title>
+  <style>
+    :root {
+      --bg: #071321;
+      --surface: rgba(16, 35, 55, .82);
+      --surface-2: rgba(24, 49, 73, .68);
+      --line: rgba(161, 209, 225, .2);
+      --text: #eff8fb;
+      --muted: #a4bdca;
+      --cyan: #55e2dd;
+      --violet: #a78bfa;
+      --coral: #ff8a6e;
+      --lime: #b9ef75;
+      --shadow: 0 24px 80px rgba(0, 0, 0, .35);
+      --radius: 24px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 15% 10%, rgba(85, 226, 221, .13), transparent 28rem),
+        radial-gradient(circle at 88% 18%, rgba(167, 139, 250, .15), transparent 26rem),
+        linear-gradient(145deg, #071321 0%, #0a1d31 54%, #111429 100%);
+      font: 16px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    .shell { width: min(1440px, calc(100% - 40px)); margin: 0 auto; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; padding: 24px 0 16px; }
+    .brand { display: flex; align-items: center; gap: 12px; font-weight: 800; letter-spacing: -.03em; }
+    .brand-mark { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 13px; color: #071321; background: linear-gradient(135deg, var(--cyan), var(--lime)); box-shadow: 0 0 30px rgba(85,226,221,.35); }
+    .top-status { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: .85rem; }
+    .status-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 12px var(--lime); }
+
+    .hero { display: grid; grid-template-columns: 1.1fr .9fr; gap: 36px; align-items: end; padding: 56px 0 36px; }
+    .eyebrow { display: inline-flex; align-items: center; gap: 8px; color: var(--cyan); text-transform: uppercase; letter-spacing: .14em; font-size: .74rem; font-weight: 800; }
+    .eyebrow::before { content: ""; width: 28px; height: 2px; background: var(--cyan); box-shadow: 0 0 12px var(--cyan); }
+    h1 { max-width: 820px; margin: 16px 0 18px; font-size: clamp(3rem, 7vw, 6.7rem); line-height: .92; letter-spacing: -.075em; }
+    h1 span { color: var(--cyan); text-shadow: 0 0 34px rgba(85,226,221,.28); }
+    .hero-copy { max-width: 650px; margin: 0; color: var(--muted); font-size: clamp(1rem, 1.8vw, 1.22rem); }
+    .hero-card { position: relative; min-height: 240px; padding: 26px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: linear-gradient(145deg, rgba(85,226,221,.16), rgba(167,139,250,.12)); box-shadow: var(--shadow); }
+    .hero-card::before { content: ""; position: absolute; inset: -50%; background: conic-gradient(from 160deg, transparent, rgba(85,226,221,.18), transparent 32%); animation: spin 12s linear infinite; }
+    .hero-card > * { position: relative; }
+    .hero-card h2 { margin: 0 0 10px; font-size: 1.25rem; }
+    .hero-card p { margin: 0; color: var(--muted); }
+    .signal-row { display: flex; gap: 8px; margin-top: 28px; }
+    .signal { height: 8px; border-radius: 999px; background: var(--cyan); box-shadow: 0 0 16px var(--cyan); }
+    .signal:nth-child(1) { width: 30%; }
+    .signal:nth-child(2) { width: 18%; background: var(--violet); box-shadow: 0 0 16px var(--violet); }
+    .signal:nth-child(3) { width: 42%; background: var(--coral); box-shadow: 0 0 16px var(--coral); }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .section-label { display: flex; align-items: center; justify-content: space-between; margin: 28px 0 12px; color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .12em; font-weight: 800; }
+    .section-label strong { color: var(--text); font-size: 1rem; letter-spacing: -.02em; text-transform: none; }
+    .scenario-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    .scenario-card { position: relative; min-height: 128px; padding: 18px; overflow: hidden; text-align: left; color: var(--text); border: 1px solid var(--line); border-radius: 18px; background: var(--surface); transition: transform .25s ease, border-color .25s ease, background .25s ease; }
+    .scenario-card:hover, .scenario-card:focus-visible { transform: translateY(-5px); border-color: var(--cyan); outline: none; }
+    .scenario-card.active { border-color: var(--cyan); background: linear-gradient(145deg, rgba(85,226,221,.2), rgba(16,35,55,.92)); box-shadow: 0 12px 40px rgba(85,226,221,.12); }
+    .scenario-icon { display: grid; place-items: center; width: 42px; height: 42px; margin-bottom: 14px; border-radius: 14px; color: #071321; font-size: 1.25rem; background: var(--cyan); }
+    .scenario-card:nth-child(2) .scenario-icon { background: var(--violet); }
+    .scenario-card:nth-child(3) .scenario-icon { background: var(--coral); }
+    .scenario-card:nth-child(4) .scenario-icon { background: var(--lime); }
+    .scenario-card h3 { margin: 0; font-size: 1.02rem; }
+    .scenario-card p { margin: 4px 0 0; color: var(--muted); font-size: .82rem; }
+
+    .lab { display: grid; grid-template-columns: 270px minmax(0, 1fr) 300px; gap: 16px; margin: 16px 0 42px; }
+    .panel { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); backdrop-filter: blur(18px); }
+    .controls, .evidence { padding: 22px; }
+    .panel-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 20px; font-size: 1rem; }
+    .panel-title small { color: var(--muted); font-size: .72rem; font-weight: 500; }
+    .control-group { margin: 20px 0; }
+    .control-label { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 8px; color: var(--muted); font-size: .84rem; }
+    .control-value { color: var(--cyan); font-weight: 800; }
+    input[type="range"] { width: 100%; accent-color: var(--cyan); }
+    .hint { margin: 22px 0 0; padding: 14px; color: #cce3e8; border-left: 3px solid var(--coral); border-radius: 0 12px 12px 0; background: rgba(255,138,110,.08); font-size: .83rem; }
+    .reset-button, .challenge-button { width: 100%; padding: 12px 16px; border: 1px solid var(--line); border-radius: 13px; color: var(--text); background: rgba(255,255,255,.05); transition: background .2s ease, border-color .2s ease; }
+    .reset-button:hover, .challenge-button:hover { border-color: var(--cyan); background: rgba(85,226,221,.12); }
+    .challenge-button { margin-top: 12px; color: #071321; border: 0; background: linear-gradient(135deg, var(--cyan), var(--lime)); font-weight: 800; }
+
+    .visual { position: relative; min-height: 570px; padding: 18px; overflow: hidden; background: radial-gradient(circle at 50% 45%, rgba(85,226,221,.13), transparent 22rem), linear-gradient(160deg, rgba(12,35,57,.95), rgba(10,22,40,.95)); }
+    .visual-head { position: absolute; z-index: 2; top: 22px; left: 24px; right: 24px; display: flex; justify-content: space-between; gap: 12px; }
+    .concept-name { max-width: 70%; }
+    .concept-name strong { display: block; font-size: 1.15rem; }
+    .concept-name span { display: block; margin-top: 4px; color: var(--muted); font-size: .82rem; }
+    .live-badge { height: fit-content; padding: 7px 10px; border: 1px solid rgba(185,239,117,.35); border-radius: 999px; color: var(--lime); background: rgba(185,239,117,.08); font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
+    #simulationCanvas { display: block; width: 100%; height: 390px; margin-top: 38px; border-radius: 18px; }
+    .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .metric { padding: 14px; border: 1px solid var(--line); border-radius: 15px; background: rgba(255,255,255,.045); }
+    .metric span { display: block; color: var(--muted); font-size: .73rem; }
+    .metric strong { display: block; margin-top: 3px; font-size: 1.35rem; }
+    .metric strong.good { color: var(--lime); }
+    .metric strong.warn { color: var(--coral); }
+
+    .evidence-card { margin-bottom: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 15px; background: rgba(255,255,255,.04); }
+    .evidence-card .tag { color: var(--cyan); font-size: .7rem; text-transform: uppercase; letter-spacing: .1em; font-weight: 800; }
+    .evidence-card p { margin: 7px 0 0; color: #d8e7eb; font-size: .83rem; }
+    .evidence-card em { color: var(--muted); font-style: normal; font-size: .72rem; }
+    .feedback { min-height: 90px; margin-top: 14px; padding: 14px; border-radius: 15px; color: #071321; background: linear-gradient(135deg, var(--lime), var(--cyan)); font-size: .84rem; font-weight: 700; }
+
+    .footer { display: flex; justify-content: space-between; gap: 16px; padding: 0 0 38px; color: var(--muted); font-size: .8rem; }
+    .footer a { color: var(--cyan); }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+    @media (max-width: 1100px) { .hero { grid-template-columns: 1fr; } .hero-card { min-height: 180px; } .lab { grid-template-columns: 240px minmax(0, 1fr); } .evidence { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; } .evidence .panel-title, .evidence .feedback { grid-column: 1 / -1; } }
+    @media (max-width: 760px) { .shell { width: min(100% - 24px, 680px); } .topbar { padding-top: 16px; } .top-status { display: none; } .hero { padding-top: 36px; } h1 { font-size: clamp(2.65rem, 13vw, 5rem); } .scenario-grid { grid-template-columns: repeat(2, 1fr); } .lab { grid-template-columns: 1fr; } .visual { min-height: 520px; order: -1; } .evidence { display: block; } .metrics { grid-template-columns: 1fr; } #simulationCanvas { height: 340px; } .footer { flex-direction: column; } }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand"><div class="brand-mark" aria-hidden="true">✦</div><span>AulaLab</span></div>
+      <div class="top-status"><span class="status-dot" aria-hidden="true"></span> Laboratorio interactivo · sesión local</div>
+    </header>
+
+    <main>
+      <section class="hero" aria-labelledby="page-title">
+        <div>
+          <div class="eyebrow">Aprender haciendo</div>
+          <h1 id="page-title">¿Qué pasaría <span>si…</span>?</h1>
+          <p class="hero-copy">Explora una idea, mueve una variable y observa cómo cambia el fenómeno. Este es el tipo de micro-recurso que cada docente puede construir para su asignatura.</p>
+        </div>
+        <aside class="hero-card" aria-label="Resumen del laboratorio">
+          <h2>Del contenido a la experiencia</h2>
+          <p>Fuentes → contexto → interacción → evidencia → aprendizaje.</p>
+          <div class="signal-row" aria-hidden="true"><span class="signal"></span><span class="signal"></span><span class="signal"></span></div>
+        </aside>
+      </section>
+
+      <div class="section-label"><strong>Elige un escenario para explorar</strong><span>4 ideas · 1 patrón reutilizable</span></div>
+      <section class="scenario-grid" aria-label="Escenarios disponibles">
+        <button class="scenario-card active" data-scenario="physics" type="button"><span class="scenario-icon" aria-hidden="true">⌁</span><h3>Movimiento</h3><p>Fuerza, velocidad y trayectoria.</p></button>
+        <button class="scenario-card" data-scenario="economy" type="button"><span class="scenario-icon" aria-hidden="true">↗</span><h3>Decisiones</h3><p>Precio, demanda y resultado.</p></button>
+        <button class="scenario-card" data-scenario="chemistry" type="button"><span class="scenario-icon" aria-hidden="true">◌</span><h3>Reacciones</h3><p>Concentración, energía y ritmo.</p></button>
+        <button class="scenario-card" data-scenario="learning" type="button"><span class="scenario-icon" aria-hidden="true">✦</span><h3>Aprendizaje</h3><p>Práctica, feedback y retención.</p></button>
+      </section>
+
+      <section class="lab" aria-label="Laboratorio interactivo">
+        <aside class="panel controls">
+          <h2 class="panel-title">Controles <small>mueve y observa</small></h2>
+          <div class="control-group"><label class="control-label" for="conceptSelect">Escenario <span class="control-value" id="scenarioValue">Movimiento</span></label><span class="sr-only">Seleccionar escenario</span><select id="conceptSelect" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--line);background:#102337;color:var(--text)"><option value="physics">Movimiento</option><option value="economy">Decisiones</option><option value="chemistry">Reacciones</option><option value="learning">Aprendizaje</option></select></div>
+          <div class="control-group"><label class="control-label" for="variableA"><span id="labelA">Fuerza aplicada</span><span class="control-value" id="valueA">58</span></label><input id="variableA" type="range" min="10" max="100" value="58" aria-label="Variable principal"></div>
+          <div class="control-group"><label class="control-label" for="variableB"><span id="labelB">Fricción del medio</span><span class="control-value" id="valueB">32</span></label><input id="variableB" type="range" min="0" max="100" value="32" aria-label="Variable secundaria"></div>
+          <div class="control-group"><label class="control-label" for="variableC"><span id="labelC">Tiempo de observación</span><span class="control-value" id="valueC">64</span></label><input id="variableC" type="range" min="10" max="100" value="64" aria-label="Variable de observación"></div>
+          <button class="reset-button" id="resetButton" type="button">Restablecer escenario</button>
+          <button class="challenge-button" id="challengeButton" type="button">Revisar mi hipótesis →</button>
+          <p class="hint" id="hintText">Mueve una variable y formula una predicción antes de mirar el resultado.</p>
+        </aside>
+
+        <section class="panel visual" aria-labelledby="visualTitle">
+          <div class="visual-head"><div class="concept-name"><strong id="visualTitle">Movimiento: una variable cambia el sistema</strong><span id="visualSubtitle">Observa la relación entre fuerza, fricción y trayectoria.</span></div><span class="live-badge">● en vivo</span></div>
+          <canvas id="simulationCanvas" aria-label="Visualización animada del escenario"></canvas>
+          <div class="metrics" aria-label="Resultados actualizados">
+            <div class="metric"><span id="metricLabelA">Resultado observable</span><strong id="metricA" class="good">72%</strong></div>
+            <div class="metric"><span id="metricLabelB">Nivel de riesgo</span><strong id="metricB" class="warn">Medio</strong></div>
+            <div class="metric"><span id="metricLabelC">Lectura del sistema</span><strong id="metricC" class="good">Estable</strong></div>
+          </div>
+        </section>
+
+        <aside class="panel evidence" id="evidencePanel" aria-label="Evidencia y explicación">
+          <h2 class="panel-title">Evidencia <small>contexto recuperado</small></h2>
+          <div class="evidence-card"><div class="tag">Fuente 01</div><p id="sourceOne">La observación mejora cuando una variable cambia y las demás se mantienen controladas.</p><em id="sourceOneType">Principio de diseño experimental</em></div>
+          <div class="evidence-card"><div class="tag">Lectura</div><p id="readingText">La visualización no reemplaza la explicación: conecta el cambio con una consecuencia visible.</p><em>Interpretación guiada</em></div>
+          <div class="evidence-card"><div class="tag">Reto</div><p id="challengeText">¿Qué variable modificarías para mejorar el resultado sin perder estabilidad?</p><em>Pregunta de transferencia</em></div>
+          <div class="feedback" id="feedbackBox" role="status">Tu hipótesis aparece aquí después de explorar el laboratorio.</div>
+        </aside>
+      </section>
+    </main>
+
+    <footer class="footer"><span>AulaLab · ejemplo de micro-recurso para el curso de docentes</span><a href="#page-title">Volver arriba ↑</a></footer>
+  </div>
+
+  <script>
+    // Scenario data is deliberately small so a docente can replace it with subject content.
+    const scenarios = {
+      physics: { name: 'Movimiento', title: 'Movimiento: una variable cambia el sistema', subtitle: 'Observa la relación entre fuerza, fricción y trayectoria.', labels: ['Fuerza aplicada', 'Fricción del medio', 'Tiempo de observación'], metrics: ['Resultado observable', 'Nivel de riesgo', 'Lectura del sistema'], source: 'La observación mejora cuando una variable cambia y las demás se mantienen controladas.', sourceType: 'Principio de diseño experimental', reading: 'La trayectoria se vuelve más amplia cuando aumenta la fuerza y disminuye la fricción.', challenge: '¿Qué variable modificarías para aumentar el alcance sin perder control?', hint: 'Mueve una variable y formula una predicción antes de mirar el resultado.', color: '#55e2dd' },
+      economy: { name: 'Decisiones', title: 'Decisiones: observa el equilibrio del sistema', subtitle: 'Explora cómo precio, demanda y tiempo cambian el resultado.', labels: ['Precio relativo', 'Demanda esperada', 'Tiempo de respuesta'], metrics: ['Oportunidad', 'Nivel de presión', 'Lectura del sistema'], source: 'Una decisión cambia el sistema cuando modifica los incentivos de sus participantes.', sourceType: 'Modelo de decisión', reading: 'Una oportunidad atractiva puede perder valor si exige demasiado tiempo o recursos.', challenge: '¿Qué ajustarías para mejorar el resultado sin aumentar la presión?', hint: 'Prueba una hipótesis: ¿qué ocurre si aumentas la demanda y mantienes el precio?', color: '#a78bfa' },
+      chemistry: { name: 'Reacciones', title: 'Reacciones: energía, concentración y ritmo', subtitle: 'Observa cómo las condiciones cambian la velocidad del proceso.', labels: ['Concentración', 'Temperatura', 'Tiempo de reacción'], metrics: ['Ritmo estimado', 'Energía requerida', 'Lectura del sistema'], source: 'La velocidad de un proceso depende de las condiciones y de la interacción entre sus componentes.', sourceType: 'Modelo de proceso', reading: 'Una reacción más rápida no siempre representa un resultado mejor: también importa el control del proceso.', challenge: '¿Qué modificarías para acelerar el proceso sin perder control?', hint: 'Cambia una sola variable y explica qué esperas observar.', color: '#ff8a6e' },
+      learning: { name: 'Aprendizaje', title: 'Aprendizaje: práctica, feedback y retención', subtitle: 'Explora cómo una experiencia puede apoyar la comprensión.', labels: ['Práctica activa', 'Retroalimentación', 'Tiempo de estudio'], metrics: ['Retención estimada', 'Carga cognitiva', 'Lectura del sistema'], source: 'La práctica con retroalimentación ayuda a convertir una respuesta en una oportunidad de aprendizaje.', sourceType: 'Principio pedagógico', reading: 'Más ejercicios no garantizan más aprendizaje: importa la calidad del feedback y el tiempo de reflexión.', challenge: '¿Qué cambiarías para mejorar la retención sin aumentar la carga cognitiva?', hint: 'Imagina que el estudiante usa este recurso: ¿qué debería descubrir?', color: '#b9ef75' }
+    };
+
+    const state = { scenario: 'physics', a: 58, b: 32, c: 64, time: 0, challenge: false };
+    const canvas = document.getElementById('simulationCanvas');
+    const ctx = canvas.getContext('2d');
+    const scenarioCards = [...document.querySelectorAll('.scenario-card')];
+    const select = document.getElementById('conceptSelect');
+    const inputs = { a: document.getElementById('variableA'), b: document.getElementById('variableB'), c: document.getElementById('variableC') };
+
+    function getMetrics() {
+      const balance = Math.max(0, Math.min(100, Math.round(50 + state.a * .38 - state.b * .22 + state.c * .1)));
+      const pressure = Math.max(0, Math.min(100, Math.round(state.b * .62 + state.a * .18 - state.c * .12)));
+      return { balance, pressure, stable: pressure < 42 && balance > 58 };
+    }
+
+    function updateText() {
+      const data = scenarios[state.scenario];
+      document.getElementById('scenarioValue').textContent = data.name;
+      document.getElementById('visualTitle').textContent = data.title;
+      document.getElementById('visualSubtitle').textContent = data.subtitle;
+      ['a', 'b', 'c'].forEach(key => document.getElementById(`value${key.toUpperCase()}`).textContent = state[key]);
+      ['a', 'b', 'c'].forEach((key, index) => document.getElementById(`label${key.toUpperCase()}`).textContent = data.labels[index]);
+      ['a', 'b', 'c'].forEach((key, index) => document.getElementById(`metricLabel${key.toUpperCase()}`).textContent = data.metrics[index]);
+      document.getElementById('sourceOne').textContent = data.source;
+      document.getElementById('sourceOneType').textContent = data.sourceType;
+      document.getElementById('readingText').textContent = data.reading;
+      document.getElementById('challengeText').textContent = data.challenge;
+      document.getElementById('hintText').textContent = data.hint;
+      const metrics = getMetrics();
+      document.getElementById('metricA').textContent = `${metrics.balance}%`;
+      document.getElementById('metricB').textContent = metrics.pressure > 62 ? 'Alto' : metrics.pressure > 38 ? 'Medio' : 'Bajo';
+      document.getElementById('metricC').textContent = metrics.stable ? 'Estable' : metrics.pressure > 62 ? 'Tensión' : 'En ajuste';
+      document.getElementById('metricA').className = metrics.balance > 58 ? 'good' : 'warn';
+      document.getElementById('metricB').className = metrics.pressure > 62 ? 'warn' : 'good';
+      document.getElementById('metricC').className = metrics.stable ? 'good' : 'warn';
+      scenarioCards.forEach(card => card.classList.toggle('active', card.dataset.scenario === state.scenario));
+      select.value = state.scenario;
+      saveState();
+    }
+
+    function setScenario(name) {
+      state.scenario = name;
+      const defaults = { physics: [58, 32, 64], economy: [54, 62, 48], chemistry: [68, 52, 42], learning: [72, 38, 58] }[name];
+      [state.a, state.b, state.c] = defaults;
+      inputs.a.value = state.a; inputs.b.value = state.b; inputs.c.value = state.c;
+      state.challenge = false;
+      updateText();
+    }
+
+    function saveState() {
+      // File URLs and embedded browsers may disable localStorage; the app must remain usable.
+      try { localStorage.setItem('aulaLabState', JSON.stringify({ scenario: state.scenario, a: state.a, b: state.b, c: state.c })); } catch { /* Persistence is optional. */ }
+    }
+
+    function drawScene() {
+      const ratio = window.devicePixelRatio || 1;
+      const width = canvas.clientWidth || 600;
+      const height = canvas.clientHeight || 390;
+      if (canvas.width !== width * ratio || canvas.height !== height * ratio) { canvas.width = width * ratio; canvas.height = height * ratio; }
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      ctx.clearRect(0, 0, width, height);
+      const data = scenarios[state.scenario];
+      const cx = width / 2, cy = height * .48;
+      const pulse = Math.sin(state.time * .03) * 5;
+      const metrics = getMetrics();
+      ctx.strokeStyle = 'rgba(164, 189, 202, .16)'; ctx.lineWidth = 1;
+      for (let i = 1; i <= 3; i++) { ctx.beginPath(); ctx.arc(cx, cy, 62 + i * 45 + pulse, 0, Math.PI * 2); ctx.stroke(); }
+      const nodes = [{x:cx-185,y:cy+35,label:'Pregunta'}, {x:cx,y:cy-85,label:'Variable'}, {x:cx+185,y:cy+35,label:'Resultado'}, {x:cx,y:cy+135,label:'Evidencia'}];
+      ctx.strokeStyle = `${data.color}55`; ctx.lineWidth = 2;
+      nodes.forEach((node, index) => { const next = nodes[(index + 1) % nodes.length]; ctx.beginPath(); ctx.moveTo(node.x,node.y); ctx.lineTo(next.x,next.y); ctx.stroke(); });
+      nodes.forEach((node, index) => { const radius = 27 + (index === 1 ? state.a * .12 : 0); ctx.beginPath(); ctx.fillStyle = index === 1 ? data.color : 'rgba(255,255,255,.08)'; ctx.arc(node.x,node.y,radius,0,Math.PI*2); ctx.fill(); ctx.strokeStyle = index === 1 ? data.color : 'rgba(255,255,255,.22)'; ctx.stroke(); ctx.fillStyle = index === 1 ? '#071321' : '#eff8fb'; ctx.font = '700 12px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.fillText(node.label,node.x,node.y+4); });
+      for (let i = 0; i < 18; i++) { const angle = state.time * .01 + i * (Math.PI * 2 / 18); const orbit = 82 + (i % 3) * 43; const x = cx + Math.cos(angle) * orbit; const y = cy + Math.sin(angle) * orbit; ctx.beginPath(); ctx.fillStyle = i % 3 === 0 ? data.color : 'rgba(255,255,255,.58)'; ctx.arc(x,y,2 + (metrics.balance / 100),0,Math.PI*2); ctx.fill(); }
+      ctx.fillStyle = 'rgba(164, 189, 202, .8)'; ctx.font = '600 12px Inter, sans-serif'; ctx.textAlign = 'left'; ctx.fillText('mueve un control para cambiar el sistema', 20, height - 18);
+      state.time += 1; requestAnimationFrame(drawScene);
+    }
+
+    function reviewHypothesis() {
+      const metrics = getMetrics();
+      const box = document.getElementById('feedbackBox');
+      state.challenge = true;
+      if (metrics.stable) box.textContent = 'Hipótesis con buena dirección: el sistema está equilibrado. Ahora explica qué variable produjo el mayor cambio.';
+      else if (metrics.pressure > 62) box.textContent = 'El sistema muestra tensión. Prueba reducir la variable secundaria o aumentar el tiempo de observación y compara.';
+      else box.textContent = 'Hay una oportunidad de mejora. Cambia una sola variable, observa el resultado y justifica tu decisión con la evidencia.';
+    }
+
+    scenarioCards.forEach(card => card.addEventListener('click', () => setScenario(card.dataset.scenario)));
+    select.addEventListener('change', event => setScenario(event.target.value));
+    Object.entries(inputs).forEach(([key, input]) => input.addEventListener('input', event => { state[key] = Number(event.target.value); updateText(); }));
+    document.getElementById('resetButton').addEventListener('click', () => setScenario(state.scenario));
+    document.getElementById('challengeButton').addEventListener('click', reviewHypothesis);
+
+    try { const saved = JSON.parse(localStorage.getItem('aulaLabState')); if (saved && scenarios[saved.scenario]) { state.scenario = saved.scenario; state.a = saved.a; state.b = saved.b; state.c = saved.c; inputs.a.value = state.a; inputs.b.value = state.b; inputs.c.value = state.c; } } catch { /* Use defaults when storage is unavailable. */ }
+    updateText();
+    drawScene();
+  </script>
+</body>
+</html>

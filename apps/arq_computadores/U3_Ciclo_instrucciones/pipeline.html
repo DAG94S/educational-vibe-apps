@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pipeline de CPU — Arquitectura de Computadores</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f8f9fa; color: #1a1a2e; min-height: 100vh; display: flex; flex-direction: column; }
+    header { background: #1a1a2e; color: #fff; padding: 16px 24px; text-align: center; }
+    header h1 { font-size: 20px; font-weight: 600; }
+    header p  { font-size: 13px; color: #a0aec0; margin-top: 4px; }
+    main { flex: 1; max-width: 980px; width: 100%; margin: 0 auto; padding: 20px 16px; }
+    #canvas { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; overflow: hidden; }
+    #canvas svg { width: 100%; height: auto; display: block; }
+    #step-description { background: #eef2ff; border-left: 4px solid #4f46e5; border-radius: 0 8px 8px 0; padding: 12px 16px; margin: 14px 0; font-size: 14px; line-height: 1.6; min-height: 52px; color: #312e81; }
+    #controls { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+    button { padding: 8px 20px; border: 1.5px solid #4f46e5; border-radius: 8px; background: #fff; color: #4f46e5; font-size: 14px; font-weight: 500; cursor: pointer; transition: background 0.15s, color 0.15s; }
+    button:hover { background: #4f46e5; color: #fff; }
+    button.primary { background: #4f46e5; color: #fff; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    #speed-wrap { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #64748b; margin-top: 10px; justify-content: center; }
+    input[type=range] { width: 120px; }
+    footer { text-align: center; padding: 18px 0 10px; border-top: 1px solid #e0e0e0; font-size: 12px; color: #888; margin-top: auto; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>Paralelismo Elemental — Pipeline de CPU</h1>
+  <p>Cómo el procesador superpone la ejecución de múltiples instrucciones simultáneamente</p>
+</header>
+<main>
+  <div id="canvas">
+    <svg viewBox="0 0 960 570" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe UI',sans-serif">
+      <defs>
+        <marker id="arr-gray" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+          <path d="M0,0 L8,4 L0,8Z" fill="#94a3b8"/>
+        </marker>
+        <filter id="shadow">
+          <feDropShadow dx="1" dy="2" stdDeviation="2" flood-opacity="0.22"/>
+        </filter>
+      </defs>
+
+      <!-- ════════════════════════════════════════════════════
+           ÁREA 1 — VISTA DE HARDWARE (etapas del pipeline)
+           ════════════════════════════════════════════════════ -->
+
+      <!-- Título área -->
+      <text x="480" y="22" text-anchor="middle" font-size="11" font-weight="700" fill="#94a3b8">UNIDADES FUNCIONALES DEL PROCESADOR</text>
+
+      <!-- ── Caja IF ── -->
+      <g id="box-if">
+        <rect x="78" y="32" width="120" height="70" rx="10" fill="#dbeafe" stroke="#3b82f6" stroke-width="2.5"/>
+        <text x="138" y="60" text-anchor="middle" font-size="17" font-weight="700" fill="#1d4ed8">IF</text>
+        <text x="138" y="76" text-anchor="middle" font-size="9" fill="#3b82f6">Instruction</text>
+        <text x="138" y="88" text-anchor="middle" font-size="9" fill="#3b82f6">Fetch</text>
+      </g>
+
+      <!-- ── Caja ID ── -->
+      <g id="box-id">
+        <rect x="228" y="32" width="120" height="70" rx="10" fill="#ede9fe" stroke="#7c3aed" stroke-width="2.5"/>
+        <text x="288" y="60" text-anchor="middle" font-size="17" font-weight="700" fill="#5b21b6">ID</text>
+        <text x="288" y="76" text-anchor="middle" font-size="9" fill="#7c3aed">Instruction</text>
+        <text x="288" y="88" text-anchor="middle" font-size="9" fill="#7c3aed">Decode</text>
+      </g>
+
+      <!-- ── Caja EX ── -->
+      <g id="box-ex">
+        <rect x="378" y="32" width="120" height="70" rx="10" fill="#fef9c3" stroke="#ca8a04" stroke-width="2.5"/>
+        <text x="438" y="60" text-anchor="middle" font-size="17" font-weight="700" fill="#92400e">EX</text>
+        <text x="438" y="76" text-anchor="middle" font-size="9" fill="#ca8a04">Execute</text>
+        <text x="438" y="88" text-anchor="middle" font-size="9" fill="#ca8a04">(ALU)</text>
+      </g>
+
+      <!-- ── Caja MEM ── -->
+      <g id="box-mem">
+        <rect x="528" y="32" width="120" height="70" rx="10" fill="#dcfce7" stroke="#16a34a" stroke-width="2.5"/>
+        <text x="588" y="60" text-anchor="middle" font-size="17" font-weight="700" fill="#14532d">MEM</text>
+        <text x="588" y="76" text-anchor="middle" font-size="9" fill="#16a34a">Memory</text>
+        <text x="588" y="88" text-anchor="middle" font-size="9" fill="#16a34a">Access</text>
+      </g>
+
+      <!-- ── Caja WB ── -->
+      <g id="box-wb">
+        <rect x="678" y="32" width="120" height="70" rx="10" fill="#fce7f3" stroke="#db2777" stroke-width="2.5"/>
+        <text x="738" y="60" text-anchor="middle" font-size="17" font-weight="700" fill="#831843">WB</text>
+        <text x="738" y="76" text-anchor="middle" font-size="9" fill="#db2777">Write</text>
+        <text x="738" y="88" text-anchor="middle" font-size="9" fill="#db2777">Back</text>
+      </g>
+
+      <!-- Flechas entre cajas (permanentes) -->
+      <line id="arr-1" x1="200" y1="67" x2="226" y2="67" stroke="#94a3b8" stroke-width="2" marker-end="url(#arr-gray)"/>
+      <line id="arr-2" x1="350" y1="67" x2="376" y2="67" stroke="#94a3b8" stroke-width="2" marker-end="url(#arr-gray)"/>
+      <line id="arr-3" x1="500" y1="67" x2="526" y2="67" stroke="#94a3b8" stroke-width="2" marker-end="url(#arr-gray)"/>
+      <line id="arr-4" x1="650" y1="67" x2="676" y2="67" stroke="#94a3b8" stroke-width="2" marker-end="url(#arr-gray)"/>
+
+      <!-- ── Tokens de instrucción (todos opacity=0) ── -->
+      <!-- I1 -->
+      <g id="tok-i1-if" opacity="0" filter="url(#shadow)">
+        <circle cx="138" cy="67" r="22" fill="#2563eb"/>
+        <text x="138" y="71" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">I1</text>
+      </g>
+      <g id="tok-i1-id" opacity="0" filter="url(#shadow)">
+        <circle cx="288" cy="67" r="22" fill="#7c3aed"/>
+        <text x="288" y="71" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">I1</text>
+      </g>
+      <g id="tok-i1-ex" opacity="0" filter="url(#shadow)">
+        <circle cx="438" cy="67" r="22" fill="#ca8a04"/>
+        <text x="438" y="71" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">I1</text>
+      </g>
+      <g id="tok-i1-mem" opacity="0" filter="url(#shadow)">
+        <circle cx="588" cy="67" r="22" fill="#16a34a"/>
+        <text x="588" y="71" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">I1</text>
+      </g>
+      <g id="tok-i1-wb" opacity="0" filter="url(#shadow)">
+        <circle cx="738" cy="67" r="22" fill="#db2777"/>
+        <text x="738" y="71" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">I1</text>
+      </g>
+      <!-- I2 -->
+      <g id="tok-i2-if" opacity="0" filter="url(#shadow)">
+        <circle cx="138" cy="67" r="22" fill="#2563eb"/>
+        <text x="138" y="71" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">I2</text>
+      </g>
+      <g id="tok-i2-id" opacity="0" filter="url(#shadow)">
+        <circle cx="288" cy="67" r="22" fill="#7c3aed"/>
+        <text x="288" y="71" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">I2</text>
+      </g>
+      <g id="tok-i2-ex" opacity="0" filter="url(#shadow)">
+        <circle cx="438" cy="67" r="22" fill="#ca8a04"/>
+        <text x="438" y="71" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">I2</text>
+      </g>
+      <g id="tok-i2-mem" opacity="0" filter="url(#shadow)">
+        <circle cx="588" cy="67" r="22" fill="#16a34a"/>
+        <text x="588" y="71" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">I2</text>
+      </g>
+      <!-- I3 -->
+      <g id="tok-i3-if" opacity="0" filter="url(#shadow)">
+        <circle cx="138" cy="67" r="22" fill="#2563eb"/>
+        <text x="138" y="71" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">I3</text>
+      </g>
+      <g id="tok-i3-id" opacity="0" filter="url(#shadow)">
+        <circle cx="288" cy="67" r="22" fill="#7c3aed"/>
+        <text x="288" y="71" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">I3</text>
+      </g>
+      <g id="tok-i3-ex" opacity="0" filter="url(#shadow)">
+        <circle cx="438" cy="67" r="22" fill="#ca8a04"/>
+        <text x="438" y="71" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">I3</text>
+      </g>
+      <!-- I4 -->
+      <g id="tok-i4-if" opacity="0" filter="url(#shadow)">
+        <circle cx="138" cy="67" r="22" fill="#2563eb"/>
+        <text x="138" y="71" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">I4</text>
+      </g>
+      <g id="tok-i4-id" opacity="0" filter="url(#shadow)">
+        <circle cx="288" cy="67" r="22" fill="#7c3aed"/>
+        <text x="288" y="71" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">I4</text>
+      </g>
+      <!-- I5 -->
+      <g id="tok-i5-if" opacity="0" filter="url(#shadow)">
+        <circle cx="138" cy="67" r="22" fill="#2563eb"/>
+        <text x="138" y="71" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">I5</text>
+      </g>
+
+      <!-- ── Overlays del área hardware ── -->
+
+      <!-- I2 esperando (paso 1, modo secuencial) -->
+      <g id="waiting-i2" opacity="0">
+        <rect x="810" y="38" width="138" height="54" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="1.5"/>
+        <text x="879" y="56" text-anchor="middle" font-size="12" font-weight="700" fill="#dc2626">I2 — Esperando</text>
+        <text x="879" y="72" text-anchor="middle" font-size="10" fill="#ef4444">I1 aún no terminó</text>
+        <text x="879" y="84" text-anchor="middle" font-size="10" fill="#ef4444">⏳ sin pipeline</text>
+      </g>
+
+      <!-- Texto indicador secuencial (paso 1) -->
+      <g id="seq-timer" opacity="0">
+        <rect x="78" y="112" width="720" height="26" rx="6" fill="#fef2f2" stroke="#ef4444" stroke-width="1.5"/>
+        <text x="438" y="129" text-anchor="middle" font-size="12" font-weight="600" fill="#dc2626">
+          SIN PIPELINE: I1 tarda 5 ciclos completos — I2 no puede iniciar hasta que I1 termine
+        </text>
+      </g>
+
+      <!-- Waste overlay (paso 2) -->
+      <g id="waste-overlay" opacity="0">
+        <rect x="78" y="112" width="720" height="38" rx="6" fill="#fff1f2" stroke="#f43f5e" stroke-width="2"/>
+        <text x="438" y="128" text-anchor="middle" font-size="13" font-weight="700" fill="#be123c">⚠ Costo de la ejecución secuencial</text>
+        <text x="438" y="144" text-anchor="middle" font-size="11" fill="#e11d48">Para N instrucciones → 5×N ciclos. Con 5 instrucciones: 25 ciclos. Hardware inactivo el 80% del tiempo.</text>
+      </g>
+
+      <!-- Highlight simultáneo (paso 3) -->
+      <rect id="sim-hl" x="70" y="26" width="290" height="82" rx="12"
+            fill="none" stroke="#f59e0b" stroke-width="3" stroke-dasharray="8,4" opacity="0"/>
+
+      <!-- Pipeline label (pasos 3-5) -->
+      <g id="pipeline-label" opacity="0">
+        <rect x="78" y="112" width="720" height="26" rx="6" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.5"/>
+        <text x="438" y="129" text-anchor="middle" font-size="12" font-weight="700" fill="#15803d">
+          CON PIPELINE: Diferentes instrucciones ocupan distintas etapas al mismo tiempo
+        </text>
+      </g>
+
+      <!-- Pipeline lleno banner (paso 5) -->
+      <g id="full-banner" opacity="0">
+        <rect x="140" y="112" width="596" height="32" rx="8" fill="#dcfce7" stroke="#16a34a" stroke-width="2.5"/>
+        <text x="438" y="133" text-anchor="middle" font-size="14" font-weight="700" fill="#166534">
+          ✓ PIPELINE LLENO — 1 instrucción completada por ciclo de reloj
+        </text>
+      </g>
+
+      <!-- Speedup banner (paso 5) -->
+      <g id="speedup-banner" opacity="0">
+        <rect x="78" y="150" width="720" height="28" rx="6" fill="#fef3c7" stroke="#fbbf24" stroke-width="2"/>
+        <text x="438" y="168" text-anchor="middle" font-size="12" font-weight="600" fill="#92400e">
+          Sin pipeline: 5 instrucciones = 25 ciclos  ·  Con pipeline: 5 instrucciones = 9 ciclos  ·  Speedup: 5×
+        </text>
+      </g>
+
+      <!-- ════════════════════════════════════════════════════
+           ÁREA 2 — DIAGRAMA DE GANTT
+           Filas: I1–I5   Columnas: C1–C9
+           Origen: x=90, y=200
+           Celda: 82×34 px
+           ════════════════════════════════════════════════════ -->
+
+      <!-- Separador -->
+      <line x1="20" y1="192" x2="940" y2="192" stroke="#e2e8f0" stroke-width="1"/>
+      <text x="480" y="207" text-anchor="middle" font-size="11" font-weight="700" fill="#64748b">DIAGRAMA DE TIEMPO — CICLOS DE RELOJ (vista de pipeline)</text>
+
+      <!-- Etiquetas de filas (instrucciones) -->
+      <text x="60" y="240" text-anchor="middle" font-size="13" font-weight="700" fill="#1e293b">I1</text>
+      <text x="60" y="274" text-anchor="middle" font-size="13" font-weight="700" fill="#1e293b">I2</text>
+      <text x="60" y="308" text-anchor="middle" font-size="13" font-weight="700" fill="#1e293b">I3</text>
+      <text x="60" y="342" text-anchor="middle" font-size="13" font-weight="700" fill="#1e293b">I4</text>
+      <text x="60" y="376" text-anchor="middle" font-size="13" font-weight="700" fill="#1e293b">I5</text>
+
+      <!-- Etiquetas de columnas (ciclos) -->
+      <text x="131" y="218" text-anchor="middle" font-size="10" fill="#94a3b8">C1</text>
+      <text x="213" y="218" text-anchor="middle" font-size="10" fill="#94a3b8">C2</text>
+      <text x="295" y="218" text-anchor="middle" font-size="10" fill="#94a3b8">C3</text>
+      <text x="377" y="218" text-anchor="middle" font-size="10" fill="#94a3b8">C4</text>
+      <text x="459" y="218" text-anchor="middle" font-size="10" fill="#94a3b8">C5</text>
+      <text x="541" y="218" text-anchor="middle" font-size="10" fill="#94a3b8">C6</text>
+      <text x="623" y="218" text-anchor="middle" font-size="10" fill="#94a3b8">C7</text>
+      <text x="705" y="218" text-anchor="middle" font-size="10" fill="#94a3b8">C8</text>
+      <text x="787" y="218" text-anchor="middle" font-size="10" fill="#94a3b8">C9</text>
+
+      <!-- Grid de fondo (líneas permanentes) -->
+      <g stroke="#e2e8f0" stroke-width="1">
+        <!-- Horizontales -->
+        <line x1="90" y1="222" x2="828" y2="222"/>
+        <line x1="90" y1="256" x2="828" y2="256"/>
+        <line x1="90" y1="290" x2="828" y2="290"/>
+        <line x1="90" y1="324" x2="828" y2="324"/>
+        <line x1="90" y1="358" x2="828" y2="358"/>
+        <line x1="90" y1="392" x2="828" y2="392"/>
+        <!-- Verticales -->
+        <line x1="90"  y1="222" x2="90"  y2="392"/>
+        <line x1="172" y1="222" x2="172" y2="392"/>
+        <line x1="254" y1="222" x2="254" y2="392"/>
+        <line x1="336" y1="222" x2="336" y2="392"/>
+        <line x1="418" y1="222" x2="418" y2="392"/>
+        <line x1="500" y1="222" x2="500" y2="392"/>
+        <line x1="582" y1="222" x2="582" y2="392"/>
+        <line x1="664" y1="222" x2="664" y2="392"/>
+        <line x1="746" y1="222" x2="746" y2="392"/>
+        <line x1="828" y1="222" x2="828" y2="392"/>
+      </g>
+
+      <!-- ── Celdas del Gantt (opacity=0 inicialmente) ──
+           x = 90 + (col-1)*82   y = 222 + (row)*34   w=80 h=32
+           row: I1=0, I2=1, I3=2, I4=3, I5=4
+           col: C1=1 .. C9=9
+      -->
+
+      <!-- I1: C1(IF) C2(ID) C3(EX) C4(MEM) C5(WB) -->
+      <g id="g-i1-c1" opacity="0">
+        <rect x="91" y="223" width="80" height="32" rx="4" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+        <text x="131" y="243" text-anchor="middle" font-size="11" font-weight="700" fill="#1d4ed8">IF</text>
+      </g>
+      <g id="g-i1-c2" opacity="0">
+        <rect x="173" y="223" width="80" height="32" rx="4" fill="#ede9fe" stroke="#7c3aed" stroke-width="1.5"/>
+        <text x="213" y="243" text-anchor="middle" font-size="11" font-weight="700" fill="#5b21b6">ID</text>
+      </g>
+      <g id="g-i1-c3" opacity="0">
+        <rect x="255" y="223" width="80" height="32" rx="4" fill="#fef9c3" stroke="#ca8a04" stroke-width="1.5"/>
+        <text x="295" y="243" text-anchor="middle" font-size="11" font-weight="700" fill="#92400e">EX</text>
+      </g>
+      <g id="g-i1-c4" opacity="0">
+        <rect x="337" y="223" width="80" height="32" rx="4" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/>
+        <text x="377" y="243" text-anchor="middle" font-size="11" font-weight="700" fill="#14532d">MEM</text>
+      </g>
+      <g id="g-i1-c5" opacity="0">
+        <rect x="419" y="223" width="80" height="32" rx="4" fill="#fce7f3" stroke="#db2777" stroke-width="1.5"/>
+        <text x="459" y="243" text-anchor="middle" font-size="11" font-weight="700" fill="#831843">WB</text>
+      </g>
+
+      <!-- I2: C2(IF) C3(ID) C4(EX) C5(MEM) C6(WB) -->
+      <g id="g-i2-c2" opacity="0">
+        <rect x="173" y="257" width="80" height="32" rx="4" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+        <text x="213" y="277" text-anchor="middle" font-size="11" font-weight="700" fill="#1d4ed8">IF</text>
+      </g>
+      <g id="g-i2-c3" opacity="0">
+        <rect x="255" y="257" width="80" height="32" rx="4" fill="#ede9fe" stroke="#7c3aed" stroke-width="1.5"/>
+        <text x="295" y="277" text-anchor="middle" font-size="11" font-weight="700" fill="#5b21b6">ID</text>
+      </g>
+      <g id="g-i2-c4" opacity="0">
+        <rect x="337" y="257" width="80" height="32" rx="4" fill="#fef9c3" stroke="#ca8a04" stroke-width="1.5"/>
+        <text x="377" y="277" text-anchor="middle" font-size="11" font-weight="700" fill="#92400e">EX</text>
+      </g>
+      <g id="g-i2-c5" opacity="0">
+        <rect x="419" y="257" width="80" height="32" rx="4" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/>
+        <text x="459" y="277" text-anchor="middle" font-size="11" font-weight="700" fill="#14532d">MEM</text>
+      </g>
+      <g id="g-i2-c6" opacity="0">
+        <rect x="501" y="257" width="80" height="32" rx="4" fill="#fce7f3" stroke="#db2777" stroke-width="1.5"/>
+        <text x="541" y="277" text-anchor="middle" font-size="11" font-weight="700" fill="#831843">WB</text>
+      </g>
+      <!-- I2 celda secuencial (C6-seq = I2 empieza en C6 sin pipeline) -->
+      <g id="g-i2-c6-seq" opacity="0">
+        <rect x="501" y="257" width="80" height="32" rx="4" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5,3"/>
+        <text x="541" y="277" text-anchor="middle" font-size="11" font-weight="700" fill="#64748b">IF</text>
+        <text x="541" y="288" text-anchor="middle" font-size="8" fill="#94a3b8">tarde</text>
+      </g>
+
+      <!-- I3: C3(IF) C4(ID) C5(EX) C6(MEM) C7(WB) -->
+      <g id="g-i3-c3" opacity="0">
+        <rect x="255" y="291" width="80" height="32" rx="4" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+        <text x="295" y="311" text-anchor="middle" font-size="11" font-weight="700" fill="#1d4ed8">IF</text>
+      </g>
+      <g id="g-i3-c4" opacity="0">
+        <rect x="337" y="291" width="80" height="32" rx="4" fill="#ede9fe" stroke="#7c3aed" stroke-width="1.5"/>
+        <text x="377" y="311" text-anchor="middle" font-size="11" font-weight="700" fill="#5b21b6">ID</text>
+      </g>
+      <g id="g-i3-c5" opacity="0">
+        <rect x="419" y="291" width="80" height="32" rx="4" fill="#fef9c3" stroke="#ca8a04" stroke-width="1.5"/>
+        <text x="459" y="311" text-anchor="middle" font-size="11" font-weight="700" fill="#92400e">EX</text>
+      </g>
+      <g id="g-i3-c6" opacity="0">
+        <rect x="501" y="291" width="80" height="32" rx="4" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/>
+        <text x="541" y="311" text-anchor="middle" font-size="11" font-weight="700" fill="#14532d">MEM</text>
+      </g>
+      <g id="g-i3-c7" opacity="0">
+        <rect x="583" y="291" width="80" height="32" rx="4" fill="#fce7f3" stroke="#db2777" stroke-width="1.5"/>
+        <text x="623" y="311" text-anchor="middle" font-size="11" font-weight="700" fill="#831843">WB</text>
+      </g>
+
+      <!-- I4: C4(IF) C5(ID) C6(EX) C7(MEM) C8(WB) -->
+      <g id="g-i4-c4" opacity="0">
+        <rect x="337" y="325" width="80" height="32" rx="4" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+        <text x="377" y="345" text-anchor="middle" font-size="11" font-weight="700" fill="#1d4ed8">IF</text>
+      </g>
+      <g id="g-i4-c5" opacity="0">
+        <rect x="419" y="325" width="80" height="32" rx="4" fill="#ede9fe" stroke="#7c3aed" stroke-width="1.5"/>
+        <text x="459" y="345" text-anchor="middle" font-size="11" font-weight="700" fill="#5b21b6">ID</text>
+      </g>
+      <g id="g-i4-c6" opacity="0">
+        <rect x="501" y="325" width="80" height="32" rx="4" fill="#fef9c3" stroke="#ca8a04" stroke-width="1.5"/>
+        <text x="541" y="345" text-anchor="middle" font-size="11" font-weight="700" fill="#92400e">EX</text>
+      </g>
+      <g id="g-i4-c7" opacity="0">
+        <rect x="583" y="325" width="80" height="32" rx="4" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/>
+        <text x="623" y="345" text-anchor="middle" font-size="11" font-weight="700" fill="#14532d">MEM</text>
+      </g>
+      <g id="g-i4-c8" opacity="0">
+        <rect x="665" y="325" width="80" height="32" rx="4" fill="#fce7f3" stroke="#db2777" stroke-width="1.5"/>
+        <text x="705" y="345" text-anchor="middle" font-size="11" font-weight="700" fill="#831843">WB</text>
+      </g>
+
+      <!-- I5: C5(IF) C6(ID) C7(EX) C8(MEM) C9(WB) -->
+      <g id="g-i5-c5" opacity="0">
+        <rect x="419" y="359" width="80" height="32" rx="4" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+        <text x="459" y="379" text-anchor="middle" font-size="11" font-weight="700" fill="#1d4ed8">IF</text>
+      </g>
+      <g id="g-i5-c6" opacity="0">
+        <rect x="501" y="359" width="80" height="32" rx="4" fill="#ede9fe" stroke="#7c3aed" stroke-width="1.5"/>
+        <text x="541" y="379" text-anchor="middle" font-size="11" font-weight="700" fill="#5b21b6">ID</text>
+      </g>
+      <g id="g-i5-c7" opacity="0">
+        <rect x="583" y="359" width="80" height="32" rx="4" fill="#fef9c3" stroke="#ca8a04" stroke-width="1.5"/>
+        <text x="623" y="379" text-anchor="middle" font-size="11" font-weight="700" fill="#92400e">EX</text>
+      </g>
+      <g id="g-i5-c8" opacity="0">
+        <rect x="665" y="359" width="80" height="32" rx="4" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/>
+        <text x="705" y="379" text-anchor="middle" font-size="11" font-weight="700" fill="#14532d">MEM</text>
+      </g>
+      <g id="g-i5-c9" opacity="0">
+        <rect x="747" y="359" width="80" height="32" rx="4" fill="#fce7f3" stroke="#db2777" stroke-width="1.5"/>
+        <text x="787" y="379" text-anchor="middle" font-size="11" font-weight="700" fill="#831843">WB</text>
+      </g>
+
+      <!-- ── Leyenda ── -->
+      <g transform="translate(90,406)">
+        <rect width="14" height="14" rx="3" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+        <text x="18" y="11" font-size="10" fill="#444">IF — Fetch</text>
+        <rect x="110" width="14" height="14" rx="3" fill="#ede9fe" stroke="#7c3aed" stroke-width="1.5"/>
+        <text x="128" y="11" font-size="10" fill="#444">ID — Decode</text>
+        <rect x="236" width="14" height="14" rx="3" fill="#fef9c3" stroke="#ca8a04" stroke-width="1.5"/>
+        <text x="254" y="11" font-size="10" fill="#444">EX — Execute</text>
+        <rect x="364" width="14" height="14" rx="3" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/>
+        <text x="382" y="11" font-size="10" fill="#444">MEM — Memory</text>
+        <rect x="496" width="14" height="14" rx="3" fill="#fce7f3" stroke="#db2777" stroke-width="1.5"/>
+        <text x="514" y="11" font-size="10" fill="#444">WB — Writeback</text>
+      </g>
+
+      <!-- ── Nota conceptual al pie ── -->
+      <rect x="90" y="430" width="738" height="46" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+      <text x="459" y="450" text-anchor="middle" font-size="10" fill="#475569" font-style="italic">
+        Cada fila es una instrucción. Cada columna es un ciclo de reloj. En el pipeline, las celdas forman una diagonal:
+      </text>
+      <text x="459" y="465" text-anchor="middle" font-size="10" fill="#475569" font-style="italic">
+        distintas instrucciones avanzan en paralelo sin interferirse, aprovechando que cada etapa usa hardware diferente.
+      </text>
+    </svg>
+  </div>
+
+  <div id="step-description">Presiona Reproducir para comenzar la animación.</div>
+
+  <div id="controls">
+    <button id="btn-prev"    disabled>← Anterior</button>
+    <button id="btn-play"    class="primary">▶ Reproducir</button>
+    <button id="btn-pause"   disabled>⏸ Pausar</button>
+    <button id="btn-next"    disabled>Siguiente →</button>
+    <button id="btn-restart">↺ Reiniciar</button>
+  </div>
+  <div id="speed-wrap">
+    <span>Velocidad:</span>
+    <input type="range" id="speed" min="0.25" max="2" step="0.25" value="1">
+    <span id="speed-label">1×</span>
+  </div>
+</main>
+<footer>© Diego García — Arquitectura de Computadores</footer>
+
+<script>
+  const steps = [
+    {
+      desc: '<strong>Paso 1 — Las 5 etapas del pipeline:</strong> El procesador divide cada instrucción en 5 etapas independientes: <span style="color:#2563eb;font-weight:600">IF</span> (busca la instrucción en memoria), <span style="color:#7c3aed;font-weight:600">ID</span> (la decodifica), <span style="color:#ca8a04;font-weight:600">EX</span> (la ejecuta en la ALU), <span style="color:#16a34a;font-weight:600">MEM</span> (accede a datos en RAM si es necesario), <span style="color:#db2777;font-weight:600">WB</span> (escribe el resultado en un registro). <em>Cada etapa usa hardware diferente.</em>'
+    },
+    {
+      desc: '<strong>Paso 2 — SIN pipeline (ejecución secuencial):</strong> La instrucción I1 ocupa el procesador de principio a fin. Avanza por las 5 etapas una por una: C1=IF, C2=ID, C3=EX, C4=MEM, C5=WB. Durante esos 5 ciclos, I2 no puede hacer nada — espera. <em>Las unidades de IF, ID, EX, MEM permanecen inactivas mientras no es su turno.</em>'
+    },
+    {
+      desc: '<strong>Paso 3 — El costo real:</strong> Cuando I1 termina (ciclo 5), I2 recién puede comenzar su Fetch en el ciclo 6. Para N instrucciones en modo secuencial se necesitan <strong>5×N ciclos</strong>. Con 5 instrucciones: <strong>25 ciclos</strong>. Las unidades funcionales están activas menos del 20% del tiempo.'
+    },
+    {
+      desc: '<strong>Paso 4 — CON pipeline:</strong> ¡La clave! Cuando I1 avanza de IF a ID (ciclo 2), la unidad de Fetch queda libre. I2 puede hacer su Fetch simultáneamente en el mismo ciclo. No hay conflicto: IF usa su propia unidad, ID usa la suya. <em>Dos instrucciones en progreso al mismo tiempo, sin interferencia.</em>'
+    },
+    {
+      desc: '<strong>Paso 5 — Pipeline llenándose:</strong> Cada ciclo entra una nueva instrucción. <strong>Ciclo 3:</strong> I1→EX, I2→ID, I3→IF (tres etapas ocupadas). <strong>Ciclo 4:</strong> I1→MEM, I2→EX, I3→ID, I4→IF (cuatro etapas). El pipeline se llena como una cadena de montaje — cada etapa procesa una parte distinta del flujo.'
+    },
+    {
+      desc: '<strong>Paso 6 — Pipeline LLENO:</strong> Ciclo 5: I1→WB, I2→MEM, I3→EX, I4→ID, I5→IF — todas las etapas ocupadas simultáneamente. <strong>Resultado: se completa 1 instrucción por ciclo.</strong> El Gantt muestra la diagonal característica del pipeline. <span style="color:#16a34a;font-weight:700">5 instrucciones en 9 ciclos vs. 25 ciclos sin pipeline → Speedup 5×</span>'
+    }
+  ];
+
+  let currentStep = -1;
+  let masterTL = null;
+
+  const btnPlay    = document.getElementById('btn-play');
+  const btnPause   = document.getElementById('btn-pause');
+  const btnPrev    = document.getElementById('btn-prev');
+  const btnNext    = document.getElementById('btn-next');
+  const btnRestart = document.getElementById('btn-restart');
+  const descEl     = document.getElementById('step-description');
+  const speedSlider = document.getElementById('speed');
+  const speedLabel  = document.getElementById('speed-label');
+
+  const HIDE = [
+    '#tok-i1-if','#tok-i1-id','#tok-i1-ex','#tok-i1-mem','#tok-i1-wb',
+    '#tok-i2-if','#tok-i2-id','#tok-i2-ex','#tok-i2-mem',
+    '#tok-i3-if','#tok-i3-id','#tok-i3-ex',
+    '#tok-i4-if','#tok-i4-id',
+    '#tok-i5-if',
+    '#waiting-i2','#seq-timer','#waste-overlay',
+    '#pipeline-label','#sim-hl','#full-banner','#speedup-banner',
+    '#g-i1-c1','#g-i1-c2','#g-i1-c3','#g-i1-c4','#g-i1-c5',
+    '#g-i2-c2','#g-i2-c3','#g-i2-c4','#g-i2-c5','#g-i2-c6',
+    '#g-i2-c6-seq',
+    '#g-i3-c3','#g-i3-c4','#g-i3-c5','#g-i3-c6','#g-i3-c7',
+    '#g-i4-c4','#g-i4-c5','#g-i4-c6','#g-i4-c7','#g-i4-c8',
+    '#g-i5-c5','#g-i5-c6','#g-i5-c7','#g-i5-c8','#g-i5-c9'
+  ];
+
+  // ── applyStep: sincronización instantánea (sin duración) ──────
+  function applyStep(s) {
+    gsap.set(HIDE, { opacity: 0 });
+
+    if (s >= 1) {
+      // Paso 2: I1 secuencial completo (en WB = final) + Gantt I1 + I2 esperando
+      gsap.set('#tok-i1-wb', { opacity: 1 });
+      gsap.set(['#g-i1-c1','#g-i1-c2','#g-i1-c3','#g-i1-c4','#g-i1-c5'], { opacity: 1 });
+      gsap.set(['#waiting-i2','#seq-timer'], { opacity: 1 });
+    }
+    if (s >= 2) {
+      // Paso 3: I1 ya salió, I2 empieza tarde + waste overlay
+      gsap.set('#tok-i1-wb', { opacity: 0 });
+      gsap.set('#tok-i2-if', { opacity: 1 });
+      gsap.set('#g-i2-c6-seq', { opacity: 1 });
+      gsap.set(['#waiting-i2','#seq-timer'], { opacity: 0 });
+      gsap.set('#waste-overlay', { opacity: 1 });
+    }
+    if (s >= 3) {
+      // Paso 4: pipeline con I1 en ID, I2 en IF simultáneos
+      gsap.set('#waste-overlay', { opacity: 0 });
+      gsap.set('#g-i2-c6-seq', { opacity: 0 });
+      gsap.set('#tok-i2-if', { opacity: 0 });
+      gsap.set('#tok-i1-id', { opacity: 1 });
+      gsap.set('#tok-i2-if', { opacity: 1 });
+      gsap.set('#sim-hl', { opacity: 1 });
+      gsap.set('#pipeline-label', { opacity: 1 });
+      gsap.set(['#g-i1-c1','#g-i1-c2'], { opacity: 1 });
+      gsap.set('#g-i2-c2', { opacity: 1 });
+    }
+    if (s >= 4) {
+      // Paso 5: estado ciclo 4 — 4 etapas ocupadas
+      gsap.set(['#tok-i1-id','#tok-i2-if'], { opacity: 0 });
+      gsap.set(['#tok-i1-mem','#tok-i2-ex','#tok-i3-id','#tok-i4-if'], { opacity: 1 });
+      gsap.set(['#g-i1-c1','#g-i1-c2','#g-i1-c3','#g-i1-c4'], { opacity: 1 });
+      gsap.set(['#g-i2-c2','#g-i2-c3','#g-i2-c4'], { opacity: 1 });
+      gsap.set(['#g-i3-c3','#g-i3-c4'], { opacity: 1 });
+      gsap.set('#g-i4-c4', { opacity: 1 });
+    }
+    if (s >= 5) {
+      // Paso 6: pipeline lleno — todas las etapas + Gantt completo
+      gsap.set(['#tok-i1-mem','#tok-i2-ex','#tok-i3-id','#tok-i4-if'], { opacity: 0 });
+      gsap.set(['#tok-i1-wb','#tok-i2-mem','#tok-i3-ex','#tok-i4-id','#tok-i5-if'], { opacity: 1 });
+      gsap.set(['#g-i1-c1','#g-i1-c2','#g-i1-c3','#g-i1-c4','#g-i1-c5'], { opacity: 1 });
+      gsap.set(['#g-i2-c2','#g-i2-c3','#g-i2-c4','#g-i2-c5','#g-i2-c6'], { opacity: 1 });
+      gsap.set(['#g-i3-c3','#g-i3-c4','#g-i3-c5','#g-i3-c6','#g-i3-c7'], { opacity: 1 });
+      gsap.set(['#g-i4-c4','#g-i4-c5','#g-i4-c6','#g-i4-c7','#g-i4-c8'], { opacity: 1 });
+      gsap.set(['#g-i5-c5','#g-i5-c6','#g-i5-c7','#g-i5-c8','#g-i5-c9'], { opacity: 1 });
+      gsap.set(['#full-banner','#speedup-banner'], { opacity: 1 });
+      gsap.set(['#sim-hl','#pipeline-label'], { opacity: 0 });
+    }
+  }
+
+  function setStep(i) {
+    currentStep = i;
+    if (steps[i]) descEl.innerHTML = steps[i].desc;
+    btnPrev.disabled = i <= 0;
+    btnNext.disabled = i >= steps.length - 1;
+    applyStep(i);
+  }
+
+  // ── buildTimeline ──────────────────────────────────────────────
+  function buildTimeline() {
+    if (masterTL) masterTL.kill();
+    gsap.set(HIDE, { opacity: 0 });
+
+    masterTL = gsap.timeline({ paused: true });
+
+    masterTL
+      // ── PASO 0: Las 5 etapas ──────────────────────────────────
+      .addLabel('paso-0')
+      .call(() => setStep(0))
+      // Las cajas son visibles por defecto en SVG; solo animamos la descripción
+      .to({}, { duration: 0.3 })
+      .addPause()
+
+      // ── PASO 1: Secuencial — I1 avanza etapa por etapa ────────
+      .addLabel('paso-1')
+      .call(() => { currentStep = 1; descEl.innerHTML = steps[1].desc; btnPrev.disabled = false; btnNext.disabled = false; })
+      // I1 entra a IF
+      .to('#tok-i1-if', { opacity: 1, duration: 0.4, ease: 'back.out(1.4)' })
+      .to('#g-i1-c1', { opacity: 1, duration: 0.3 }, '<0.1')
+      // I1 IF → ID
+      .to('#tok-i1-if', { opacity: 0, duration: 0.25 }, '+=0.55')
+      .to('#tok-i1-id', { opacity: 1, duration: 0.4, ease: 'back.out(1.4)' }, '<0.1')
+      .to('#g-i1-c2', { opacity: 1, duration: 0.3 }, '<')
+      // I1 ID → EX
+      .to('#tok-i1-id', { opacity: 0, duration: 0.25 }, '+=0.55')
+      .to('#tok-i1-ex', { opacity: 1, duration: 0.4, ease: 'back.out(1.4)' }, '<0.1')
+      .to('#g-i1-c3', { opacity: 1, duration: 0.3 }, '<')
+      // I1 EX → MEM
+      .to('#tok-i1-ex', { opacity: 0, duration: 0.25 }, '+=0.55')
+      .to('#tok-i1-mem', { opacity: 1, duration: 0.4, ease: 'back.out(1.4)' }, '<0.1')
+      .to('#g-i1-c4', { opacity: 1, duration: 0.3 }, '<')
+      // I1 MEM → WB
+      .to('#tok-i1-mem', { opacity: 0, duration: 0.25 }, '+=0.55')
+      .to('#tok-i1-wb', { opacity: 1, duration: 0.4, ease: 'back.out(1.4)' }, '<0.1')
+      .to('#g-i1-c5', { opacity: 1, duration: 0.3 }, '<')
+      // Mostrar I2 esperando
+      .to(['#waiting-i2','#seq-timer'], { opacity: 1, duration: 0.5, ease: 'power2.out' }, '+=0.2')
+      .addPause()
+
+      // ── PASO 2: El costo ───────────────────────────────────────
+      .addLabel('paso-2')
+      .call(() => { currentStep = 2; descEl.innerHTML = steps[2].desc; btnPrev.disabled = false; btnNext.disabled = false; })
+      // I1 sale de WB
+      .to('#tok-i1-wb', { opacity: 0, duration: 0.3 })
+      .to(['#waiting-i2','#seq-timer'], { opacity: 0, duration: 0.3 }, '<')
+      // I2 empieza tarde (ciclo 6)
+      .to('#tok-i2-if', { opacity: 1, duration: 0.4, ease: 'back.out(1.4)' }, '+=0.25')
+      .to('#g-i2-c6-seq', { opacity: 1, duration: 0.3 }, '<0.1')
+      // Waste overlay con pulso
+      .to('#waste-overlay', { opacity: 1, duration: 0.5, ease: 'power2.out' }, '+=0.2')
+      .to('#waste-overlay', { scaleY: 1.05, duration: 0.18, yoyo: true, repeat: 3, transformOrigin: 'center center' }, '+=0.1')
+      .addPause()
+
+      // ── PASO 3: CON pipeline — overlap ────────────────────────
+      .addLabel('paso-3')
+      .call(() => { currentStep = 3; descEl.innerHTML = steps[3].desc; btnPrev.disabled = false; btnNext.disabled = false; })
+      // Ocultar artefactos secuenciales
+      .to(['#waste-overlay','#tok-i2-if','#g-i2-c6-seq'], { opacity: 0, duration: 0.3 })
+      .to(['#g-i1-c3','#g-i1-c4','#g-i1-c5'], { opacity: 0, duration: 0.2 }, '<')
+      // Ciclo 2: I1→ID y I2→IF simultáneos
+      .to('#tok-i1-if', { opacity: 0, duration: 0.25 }, '+=0.2')
+      .to('#tok-i1-id', { opacity: 1, duration: 0.4, ease: 'back.out(1.4)' }, '<0.1')
+      .to('#g-i1-c2', { opacity: 1, duration: 0.3 }, '<')
+      .to('#tok-i2-if', { opacity: 1, duration: 0.4, ease: 'back.out(1.4)' }, '<')
+      .to('#g-i2-c2', { opacity: 1, duration: 0.3 }, '<')
+      // Highlight del overlap
+      .to('#sim-hl', { opacity: 1, duration: 0.4, ease: 'power2.out' }, '<0.1')
+      .to('#sim-hl', { scale: 1.03, duration: 0.2, yoyo: true, repeat: 3, transformOrigin: 'center center' }, '+=0.1')
+      .to('#pipeline-label', { opacity: 1, duration: 0.4 }, '<0.2')
+      .addPause()
+
+      // ── PASO 4: Pipeline llenándose ────────────────────────────
+      .addLabel('paso-4')
+      .call(() => { currentStep = 4; descEl.innerHTML = steps[4].desc; btnPrev.disabled = false; btnNext.disabled = false; })
+      // Ciclo 3: I1→EX, I2→ID, I3→IF
+      .to('#sim-hl', { opacity: 0, duration: 0.2 })
+      .to(['#tok-i1-id','#tok-i2-if'], { opacity: 0, duration: 0.25 }, '<')
+      .to(['#tok-i1-ex','#tok-i2-id','#tok-i3-if'], {
+        opacity: 1, duration: 0.4, stagger: 0.1, ease: 'back.out(1.4)'
+      }, '<0.1')
+      .to(['#g-i1-c3','#g-i2-c3','#g-i3-c3'], { opacity: 1, duration: 0.3, stagger: 0.08 }, '<0.1')
+      // Pausa para que el estudiante vea el ciclo 3
+      .to({}, { duration: 0.7 })
+      // Ciclo 4: I1→MEM, I2→EX, I3→ID, I4→IF
+      .to(['#tok-i1-ex','#tok-i2-id','#tok-i3-if'], { opacity: 0, duration: 0.25 })
+      .to(['#tok-i1-mem','#tok-i2-ex','#tok-i3-id','#tok-i4-if'], {
+        opacity: 1, duration: 0.4, stagger: 0.08, ease: 'back.out(1.4)'
+      }, '<0.1')
+      .to(['#g-i1-c4','#g-i2-c4','#g-i3-c4','#g-i4-c4'], { opacity: 1, duration: 0.3, stagger: 0.07 }, '<0.1')
+      .addPause()
+
+      // ── PASO 5: Pipeline lleno ─────────────────────────────────
+      .addLabel('paso-5')
+      .call(() => { currentStep = 5; descEl.innerHTML = steps[5].desc; btnPrev.disabled = false; btnNext.disabled = false; })
+      // Ciclo 5: I1→WB, I2→MEM, I3→EX, I4→ID, I5→IF
+      .to(['#tok-i1-mem','#tok-i2-ex','#tok-i3-id','#tok-i4-if'], { opacity: 0, duration: 0.25 })
+      .to(['#tok-i1-wb','#tok-i2-mem','#tok-i3-ex','#tok-i4-id','#tok-i5-if'], {
+        opacity: 1, duration: 0.45, stagger: 0.09, ease: 'back.out(1.5)'
+      }, '<0.1')
+      // Llenar Gantt diagonal: C5, C6, C7, C8, C9
+      .to(['#g-i1-c5','#g-i2-c5','#g-i3-c5','#g-i4-c5','#g-i5-c5'], { opacity: 1, duration: 0.3, stagger: 0.07 }, '<0.2')
+      .to(['#g-i2-c6','#g-i3-c6','#g-i4-c6','#g-i5-c6'], { opacity: 1, duration: 0.25, stagger: 0.06 }, '+=0.15')
+      .to(['#g-i3-c7','#g-i4-c7','#g-i5-c7'], { opacity: 1, duration: 0.25, stagger: 0.06 }, '+=0.1')
+      .to(['#g-i4-c8','#g-i5-c8'], { opacity: 1, duration: 0.25, stagger: 0.06 }, '+=0.1')
+      .to('#g-i5-c9', { opacity: 1, duration: 0.25 }, '+=0.1')
+      // Pulso de celebración en las 5 cajas
+      .to(['#box-if','#box-id','#box-ex','#box-mem','#box-wb'], {
+        scale: 1.06, duration: 0.22, yoyo: true, repeat: 3,
+        transformOrigin: 'center center', ease: 'power1.inOut'
+      }, '+=0.2')
+      // Ocultar pipeline-label y mostrar banners finales
+      .to('#pipeline-label', { opacity: 0, duration: 0.2 }, '+=0.2')
+      .from('#full-banner', { scale: 0.75, opacity: 0, duration: 0.55, ease: 'back.out(1.6)' }, '+=0.1')
+      .to('#full-banner', { opacity: 1, duration: 0 })
+      .from('#speedup-banner', { y: 10, opacity: 0, duration: 0.4, ease: 'power2.out' }, '+=0.2')
+      .to('#speedup-banner', { opacity: 1, duration: 0 });
+
+    return masterTL;
+  }
+
+  // ── Controles ──────────────────────────────────────────────────
+  btnPlay.addEventListener('click', () => {
+    if (!masterTL || masterTL.progress() === 0) buildTimeline();
+    masterTL.timeScale(parseFloat(speedSlider.value));
+    masterTL.play();
+    btnPlay.disabled  = true;
+    btnPause.disabled = false;
+    btnNext.disabled  = false;
+  });
+
+  btnPause.addEventListener('click', () => {
+    masterTL.pause();
+    btnPlay.disabled  = false;
+    btnPause.disabled = true;
+  });
+
+  btnPrev.addEventListener('click', () => {
+    if (currentStep > 0) {
+      masterTL.pause();
+      masterTL.seek(`paso-${currentStep - 1}`);
+      setStep(currentStep - 1);
+    }
+  });
+
+  btnNext.addEventListener('click', () => {
+    if (currentStep < steps.length - 1) {
+      masterTL.pause();
+      masterTL.seek(`paso-${currentStep + 1}`);
+      setStep(currentStep + 1);
+    }
+  });
+
+  btnRestart.addEventListener('click', () => {
+    buildTimeline();
+    currentStep = -1;
+    descEl.textContent = 'Presiona Reproducir para comenzar la animación.';
+    btnPlay.disabled  = false;
+    btnPause.disabled = true;
+    btnPrev.disabled  = true;
+    btnNext.disabled  = true;
+  });
+
+  speedSlider.addEventListener('input', () => {
+    const v = parseFloat(speedSlider.value);
+    speedLabel.textContent = v + '×';
+    if (masterTL) masterTL.timeScale(v);
+  });
+
+  buildTimeline();
+</script>
+</body>
+</html>

@@ -1,0 +1,1427 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simulador Interactivo del Corazón Humano 3D</title>
+  
+  <!-- SEO Meta Tags -->
+  <meta name="description" content="Una simulación interactiva en 3D del corazón humano para clases de biología y medicina. Aprende su anatomía, flujo sanguíneo y ciclo cardíaco.">
+  <meta name="keywords" content="corazón 3d, anatomía humana, simulador médico, three.js, biología interactiva, moodle espoch">
+  <meta name="author" content="Antigravity AI">
+
+  <!-- Google Fonts & FontAwesome -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Three.js CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <!-- OrbitControls CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+  <style>
+    :root {
+      --bg-dark: #070913;
+      --card-bg: rgba(15, 23, 42, 0.45);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      
+      --color-oxygenated: #ef4444;
+      --color-deoxygenated: #2563eb;
+      --color-muscle: #dc2626;
+      --color-muscle-right: #9f1239;
+      --color-accent: #06b6d4;
+      --color-accent-glow: rgba(6, 182, 212, 0.4);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: 'Outfit', sans-serif;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    /* Grid overlay for technical/lab style */
+    .lab-grid {
+      position: absolute;
+      inset: 0;
+      background-image: 
+        linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .radial-glow {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 50% 50%, rgba(15, 23, 42, 0) 20%, var(--bg-dark) 85%);
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    #canvas-container {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      z-index: 2;
+    }
+
+    /* HUD Elements */
+    .hud-element {
+      position: absolute;
+      z-index: 10;
+      backdrop-filter: blur(16px) saturate(180%);
+      -webkit-backdrop-filter: blur(16px) saturate(180%);
+      background-color: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* Header */
+    header.hud-element {
+      top: 20px;
+      left: 20px;
+      padding: 16px 24px;
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
+    }
+
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-heart {
+      color: var(--color-oxygenated);
+      font-size: 1.5rem;
+      animation: heartbeat-ui 1s infinite alternate cubic-bezier(0.215, 0.610, 0.355, 1);
+    }
+
+    header h1 {
+      font-size: 1.25rem;
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      background: linear-gradient(135deg, #fff 40%, var(--text-muted));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    header p {
+      font-size: 0.75rem;
+      color: var(--color-accent);
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-top: 2px;
+    }
+
+    /* Info Panel */
+    .info-panel {
+      top: 20px;
+      right: 20px;
+      width: 380px;
+      max-height: calc(100vh - 180px);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+      overflow-y: auto;
+    }
+
+    .badge-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .oxygen-badge {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .oxygen-badge.oxygenated {
+      background-color: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #fca5a5;
+    }
+
+    .oxygen-badge.deoxygenated {
+      background-color: rgba(37, 99, 235, 0.15);
+      border: 1px solid rgba(37, 99, 235, 0.3);
+      color: #93c5fd;
+    }
+
+    .oxygen-badge.none {
+      background-color: rgba(148, 163, 184, 0.15);
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      color: #cbd5e1;
+    }
+
+    .id-tag {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--color-accent);
+      background: rgba(6, 182, 212, 0.1);
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid rgba(6, 182, 212, 0.2);
+    }
+
+    .info-title {
+      font-size: 1.75rem;
+      font-weight: 700;
+      line-height: 1.2;
+      color: #fff;
+    }
+
+    .info-divider {
+      height: 1px;
+      background: linear-gradient(90deg, var(--card-border), transparent);
+    }
+
+    .info-desc {
+      font-size: 0.9rem;
+      line-height: 1.6;
+      color: var(--text-muted);
+    }
+
+    .info-data {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .data-item {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      border-radius: 8px;
+      padding: 10px;
+    }
+
+    .data-label {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .data-value {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #fff;
+      margin-top: 4px;
+    }
+
+    .instruction-tip {
+      font-size: 0.8rem;
+      color: var(--color-accent);
+      background: rgba(6, 182, 212, 0.08);
+      border: 1px dashed rgba(6, 182, 212, 0.3);
+      border-radius: 8px;
+      padding: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      line-height: 1.4;
+    }
+
+    /* Control Panel */
+    .control-panel {
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 600px;
+      padding: 16px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    }
+
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .control-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--text-main);
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .control-btn:hover {
+      background: var(--color-accent);
+      border-color: var(--color-accent);
+      box-shadow: 0 0 12px var(--color-accent-glow);
+      transform: scale(1.05);
+    }
+
+    .control-btn.active {
+      background: var(--color-accent);
+      border-color: var(--color-accent);
+      color: var(--bg-dark);
+      box-shadow: 0 0 12px var(--color-accent-glow);
+    }
+
+    .slider-container {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      width: 140px;
+    }
+
+    .slider-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .slider-header span.value {
+      font-weight: 700;
+      color: var(--color-accent);
+    }
+
+    .bpm-slider {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(255, 255, 255, 0.1);
+      outline: none;
+    }
+
+    .bpm-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--color-accent);
+      box-shadow: 0 0 6px var(--color-accent-glow);
+      cursor: pointer;
+      transition: transform 0.1s ease;
+    }
+
+    .bpm-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.3);
+    }
+
+    .toggle-switch-container {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .toggle-label {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .toggle-buttons {
+      display: flex;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      padding: 2px;
+      gap: 2px;
+    }
+
+    .toggle-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .toggle-btn.active {
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    /* Moodle Embed Support */
+    .moodle-instructions {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .moodle-logo {
+      width: 32px;
+      height: 32px;
+      background: #f98012;
+      color: white;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 1.1rem;
+      box-shadow: 0 4px 10px rgba(249, 128, 18, 0.3);
+    }
+
+    /* Crosshair for interaction clue */
+    .reticle {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 20px;
+      height: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 1;
+      opacity: 0.5;
+    }
+
+    /* Animations */
+    @keyframes heartbeat-ui {
+      from { transform: scale(1); }
+      to { transform: scale(1.15); }
+    }
+
+    /* Responsive */
+    @media (max-width: 1024px) {
+      .info-panel {
+        width: 320px;
+      }
+      .control-panel {
+        width: calc(100% - 40px);
+        flex-wrap: wrap;
+        gap: 16px;
+        justify-content: center;
+      }
+    }
+
+    @media (max-width: 768px) {
+      header.hud-element {
+        width: calc(100% - 40px);
+        left: 20px;
+        right: 20px;
+      }
+      .info-panel {
+        position: relative;
+        top: auto;
+        right: auto;
+        width: calc(100% - 40px);
+        margin: 120px 20px 20px 20px;
+        max-height: 250px;
+      }
+      .control-panel {
+        position: relative;
+        bottom: auto;
+        left: auto;
+        transform: none;
+        width: calc(100% - 40px);
+        margin: 0 20px 20px 20px;
+      }
+      body {
+        overflow-y: auto;
+        height: auto;
+      }
+      #canvas-container {
+        position: fixed;
+        height: 60vh;
+        top: 0;
+      }
+      .main-overlay-wrapper {
+        margin-top: 60vh;
+        display: flex;
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="lab-grid"></div>
+  <div class="radial-glow"></div>
+
+  <div id="canvas-container"></div>
+  <div class="reticle"></div>
+
+  <div class="main-overlay-wrapper">
+    <!-- Header Title -->
+    <header class="hud-element">
+      <div class="logo-container">
+        <i class="fa-solid fa-heart-pulse logo-heart"></i>
+        <div>
+          <h1>Corazón Humano 3D</h1>
+          <p>Simulador Anatómico y Fisiológico</p>
+        </div>
+      </div>
+    </header>
+
+    <!-- Info Panel -->
+    <aside class="hud-element info-panel" id="info-panel">
+      <!-- Default instruction shown before click -->
+      <div id="info-default">
+        <h2 class="info-title" style="font-size: 1.4rem; margin-bottom: 12px;">Exploración del Corazón</h2>
+        <p class="info-desc" style="margin-bottom: 16px;">
+          Esta simulación muestra un modelo tridimensional e interactivo del corazón humano, el motor del sistema circulatorio.
+        </p>
+        <div class="instruction-tip">
+          <i class="fa-solid fa-circle-info" style="font-size: 1.1rem;"></i>
+          <span>Haz clic y arrastra con el ratón para rotar el modelo en 3D. Haz clic en las diferentes estructuras para conocer su función.</span>
+        </div>
+      </div>
+
+      <!-- Structure Detail (Hidden by default) -->
+      <div id="info-detail" style="display: none;">
+        <div class="badge-row">
+          <span class="id-tag" id="part-id">PART-001</span>
+          <span class="oxygen-badge oxygenated" id="part-oxygen"><i class="fa-solid fa-droplet"></i> Oxigenada</span>
+        </div>
+        <h2 class="info-title" id="part-name">Aorta</h2>
+        <div class="info-divider"></div>
+        <p class="info-desc" id="part-desc">
+          Cargando detalles de la estructura...
+        </p>
+        <div class="info-divider"></div>
+        <div class="info-data">
+          <div class="data-item">
+            <span class="data-label">Presión Promedio</span>
+            <div class="data-value" id="part-pressure">120 mmHg</div>
+          </div>
+          <div class="data-item">
+            <span class="data-label">Función Principal</span>
+            <div class="data-value" id="part-function">Distribución</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Control Panel -->
+    <footer class="hud-element control-panel">
+      <!-- Play/Pause & Audio -->
+      <div class="control-group">
+        <button class="control-btn active" id="btn-play" title="Reproducir/Pausar Latido">
+          <i class="fa-solid fa-pause"></i>
+        </button>
+        <button class="control-btn" id="btn-audio" title="Activar Sonido del Latido">
+          <i class="fa-solid fa-volume-mute"></i>
+        </button>
+      </div>
+
+      <!-- BPM Slider -->
+      <div class="slider-container">
+        <div class="slider-header">
+          <span>Frecuencia</span>
+          <span class="value" id="bpm-value">75 BPM</span>
+        </div>
+        <input type="range" min="40" max="150" value="75" class="bpm-slider" id="bpm-slider">
+      </div>
+
+      <!-- View Mode Toggle -->
+      <div class="control-group">
+        <div class="toggle-switch-container">
+          <span class="toggle-label">Modo Visual</span>
+          <div class="toggle-buttons">
+            <button class="toggle-btn active" id="mode-anatomical">Anatomía</button>
+            <button class="toggle-btn" id="mode-xray">Rayos X</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Flow Particles Toggle -->
+      <button class="control-btn active" id="btn-flow" title="Mostrar/Ocultar Flujo de Sangre">
+        <i class="fa-solid fa-route"></i>
+      </button>
+    </footer>
+
+    <!-- Moodle Snip Helper (Floating left bottom) -->
+    <div class="moodle-instructions" style="z-index: 10;">
+      <div class="moodle-logo" title="Recurso Listo para ESPOCH Moodle">M</div>
+      <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 500;">Listo para Moodle</span>
+    </div>
+  </div>
+
+  <script>
+    // Anatomical Data Object
+    const heartData = {
+      ventriculo_izq: {
+        name: "Ventrículo Izquierdo",
+        oxygen: "oxygenated",
+        id: "LV-01",
+        desc: "La cámara de bombeo más muscular del corazón. Recibe sangre oxigenada desde la aurícula izquierda a través de la válvula mitral y la expulsa con alta presión hacia la aorta para distribuirla a todo el cuerpo.",
+        pressure: "120 mmHg (Sist.)",
+        func: "Bombeo sistémico",
+        color: "#c2185b"
+      },
+      ventriculo_der: {
+        name: "Ventrículo Derecho",
+        oxygen: "deoxygenated",
+        id: "RV-02",
+        desc: "Cámara encargada de recibir la sangre desoxigenada desde la aurícula derecha a través de la válvula tricúspide y bombearla a baja presión hacia la arteria pulmonar para que se oxigene en los pulmones.",
+        pressure: "25 mmHg (Sist.)",
+        func: "Bombeo pulmonar",
+        color: "#880e4f"
+      },
+      auricula_izq: {
+        name: "Aurícula Izquierda",
+        oxygen: "oxygenated",
+        id: "LA-03",
+        desc: "Cámara superior izquierda que recibe la sangre rica en oxígeno proveniente de los pulmones a través de las venas pulmonares. Al contraerse, impulsa esta sangre hacia el ventrículo izquierdo.",
+        pressure: "8 mmHg",
+        func: "Recepción de venas",
+        color: "#e91e63"
+      },
+      auricula_der: {
+        name: "Aurícula Derecha",
+        oxygen: "deoxygenated",
+        id: "RA-04",
+        desc: "Cámara superior derecha que actúa como el punto de llegada de toda la sangre desoxigenada del cuerpo a través de la vena cava superior e inferior. Pasa esta sangre al ventrículo derecho.",
+        pressure: "5 mmHg",
+        func: "Recepción de cavas",
+        color: "#ad1457"
+      },
+      aorta: {
+        name: "Arteria Aorta",
+        oxygen: "oxygenated",
+        id: "AA-05",
+        desc: "La arteria más grande y principal del cuerpo humano. Nace en el ventrículo izquierdo, forma un arco (cayado aórtico) y desciende distribuyendo sangre oxigenada a todos los órganos del cuerpo.",
+        pressure: "120 / 80 mmHg",
+        func: "Distribución corporal",
+        color: "#ef4444"
+      },
+      vena_cava: {
+        name: "Venas Cavas (Sup. e Inf.)",
+        oxygen: "deoxygenated",
+        id: "VC-06",
+        desc: "Grandes troncos venosos que retornan la sangre desoxigenada de los tejidos corporales a la aurícula derecha. La superior drena la mitad superior del cuerpo y la inferior la mitad inferior.",
+        pressure: "2 - 8 mmHg",
+        func: "Retorno sistémico",
+        color: "#2563eb"
+      },
+      arteria_pulmonar: {
+        name: "Arteria Pulmonar",
+        oxygen: "deoxygenated",
+        id: "PA-07",
+        desc: "Conducto que emerge del ventrículo derecho y se bifurca en dos ramas para transportar la sangre desoxigenada hacia los pulmones izquierdo y derecho. Es la única arteria del cuerpo que lleva sangre con bajo oxígeno.",
+        pressure: "15 mmHg (Med.)",
+        func: "Transporte a pulmón",
+        color: "#6366f1"
+      }
+    };
+
+    // Main WebGL Simulation Class
+    class HeartSimulation {
+      constructor(containerId) {
+        this.container = document.getElementById(containerId);
+        this.animationFrameId = null;
+        this.clock = new THREE.Clock();
+        
+        // Simulation State
+        this.bpm = 75;
+        this.isBeating = true;
+        this.audioEnabled = false;
+        this.renderMode = 'anatomical'; // 'anatomical' or 'xray'
+        this.showFlow = true;
+        this.selectedPart = null;
+        this.hoveredPart = null;
+
+        // Sound Engine
+        this.audioCtx = null;
+
+        // Initialized Groups
+        this.heartGroup = new THREE.Group();
+        this.flowGroup = new THREE.Group();
+        
+        this.init();
+      }
+
+      init() {
+        // 1. Scene Setup
+        this.scene = new THREE.Scene();
+        this.scene.background = null; // transparent to show beautiful CSS gradient
+
+        // 2. Camera Setup
+        this.camera = new THREE.PerspectiveCamera(
+          45,
+          this.container.clientWidth / this.container.clientHeight,
+          0.1,
+          50
+        );
+        this.camera.position.set(0, 0, 8);
+
+        // 3. Renderer Setup
+        this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        this.renderer.shadowMap.enabled = true;
+        this.container.appendChild(this.renderer.domElement);
+
+        // 4. Orbit Controls
+        this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
+        this.controls.enableDamping = true;
+        this.controls.dampingFactor = 0.05;
+        this.controls.maxDistance = 15;
+        this.controls.minDistance = 4;
+
+        // 5. Lights
+        this.setupLights();
+
+        // 6. Build the Heart Model
+        this.buildHeartModel();
+        this.scene.add(this.heartGroup);
+
+        // 7. Setup Blood Flow Paths and Particles
+        this.setupBloodFlow();
+        this.scene.add(this.flowGroup);
+
+        // 8. Interaction Setup (Raycasting)
+        this.raycaster = new THREE.Raycaster();
+        this.pointer = new THREE.Vector2();
+        
+        // Bind event handlers
+        this.resizeHandler = this.onResize.bind(this);
+        this.pointerDownHandler = this.onPointerDown.bind(this);
+        this.pointerMoveHandler = this.onPointerMove.bind(this);
+
+        window.addEventListener('resize', this.resizeHandler);
+        this.renderer.domElement.addEventListener('pointerdown', this.pointerDownHandler);
+        this.renderer.domElement.addEventListener('pointermove', this.pointerMoveHandler);
+
+        // 9. Start Loop
+        this.animate();
+      }
+
+      setupLights() {
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+        this.scene.add(ambientLight);
+
+        this.dirLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
+        this.dirLight1.position.set(5, 5, 5);
+        this.scene.add(this.dirLight1);
+
+        this.dirLight2 = new THREE.DirectionalLight(0x06b6d4, 0.5); // teal rim light
+        this.dirLight2.position.set(-5, -5, -5);
+        this.scene.add(this.dirLight2);
+
+        this.pointLight = new THREE.PointLight(0xff0055, 0.3, 10); // internal glow
+        this.pointLight.position.set(0, 0, 0);
+        this.scene.add(this.pointLight);
+      }
+
+      // Procedural model generation helper
+      buildHeartModel() {
+        this.heartParts = {};
+
+        // Helper: create deformed sphere to represent ventricular/atrial muscles
+        const createDeformedMuscle = (scaleX, scaleY, scaleZ, taper, shiftX, color) => {
+          const geo = new THREE.SphereGeometry(1, 32, 32);
+          const pos = geo.attributes.position;
+          
+          // Deform sphere to make a ventricule apex shape
+          for (let i = 0; i < pos.count; i++) {
+            let x = pos.getX(i);
+            let y = pos.getY(i);
+            let z = pos.getZ(i);
+
+            // Taper bottom
+            if (y < 0) {
+              const factor = 1.0 - y * taper;
+              x *= factor;
+              z *= factor;
+            }
+            
+            // Apply scales and asymmetrical shift
+            pos.setXYZ(i, x * scaleX + y * shiftX, y * scaleY, z * scaleZ);
+          }
+          geo.computeVertexNormals();
+
+          const mat = new THREE.MeshStandardMaterial({
+            color: color,
+            roughness: 0.35,
+            metalness: 0.15,
+            emissive: color,
+            emissiveIntensity: 0.05
+          });
+
+          return new THREE.Mesh(geo, mat);
+        };
+
+        // 1. LEFT VENTRICLE (LV)
+        const lvColor = new THREE.Color(heartData.ventriculo_izq.color);
+        const lv = createDeformedMuscle(0.9, 1.4, 0.9, 0.5, -0.15, lvColor);
+        lv.position.set(-0.5, -0.6, 0);
+        lv.name = "ventriculo_izq";
+        this.heartGroup.add(lv);
+        this.heartParts.ventriculo_izq = lv;
+
+        // 2. RIGHT VENTRICLE (RV)
+        const rvColor = new THREE.Color(heartData.ventriculo_der.color);
+        const rv = createDeformedMuscle(0.8, 1.25, 0.8, 0.45, 0.15, rvColor);
+        rv.position.set(0.5, -0.5, 0.15);
+        rv.name = "ventriculo_der";
+        this.heartGroup.add(rv);
+        this.heartParts.ventriculo_der = rv;
+
+        // 3. LEFT ATRIUM (LA)
+        const laColor = new THREE.Color(heartData.auricula_izq.color);
+        const la = createDeformedMuscle(0.65, 0.7, 0.65, 0.1, 0, laColor);
+        la.position.set(-0.6, 0.6, -0.1);
+        la.name = "auricula_izq";
+        this.heartGroup.add(la);
+        this.heartParts.auricula_izq = la;
+
+        // 4. RIGHT ATRIUM (RA)
+        const raColor = new THREE.Color(heartData.auricula_der.color);
+        const ra = createDeformedMuscle(0.7, 0.75, 0.7, 0.15, 0, raColor);
+        ra.position.set(0.6, 0.6, 0.1);
+        ra.name = "auricula_der";
+        this.heartGroup.add(ra);
+        this.heartParts.auricula_der = ra;
+
+        // 5. AORTA ARCH
+        const aortaColor = new THREE.Color(heartData.aorta.color);
+        const aortaGroup = new THREE.Group();
+        aortaGroup.name = "aorta";
+
+        // Main arch (using a torus)
+        const archGeo = new THREE.TorusGeometry(0.7, 0.22, 16, 32, Math.PI * 1.15);
+        const aortaMat = new THREE.MeshStandardMaterial({
+          color: aortaColor,
+          roughness: 0.25,
+          metalness: 0.2,
+          emissive: aortaColor,
+          emissiveIntensity: 0.05
+        });
+        const arch = new THREE.Mesh(archGeo, aortaMat);
+        arch.position.set(-0.15, 1.1, -0.2);
+        arch.rotation.set(0, Math.PI / 4, Math.PI / 1.3);
+        aortaGroup.add(arch);
+
+        // Branching arteries on top
+        const branchGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.5, 16);
+        const branch1 = new THREE.Mesh(branchGeo, aortaMat);
+        branch1.position.set(-0.4, 1.8, 0);
+        branch1.rotation.z = -0.1;
+        const branch2 = new THREE.Mesh(branchGeo, aortaMat);
+        branch2.position.set(-0.25, 1.9, -0.1);
+        branch2.rotation.z = 0.05;
+        const branch3 = new THREE.Mesh(branchGeo, aortaMat);
+        branch3.position.set(-0.1, 1.9, -0.2);
+        branch3.rotation.z = 0.15;
+        aortaGroup.add(branch1, branch2, branch3);
+
+        // Ascending tube connection
+        const tubeGeo = new THREE.CylinderGeometry(0.22, 0.22, 0.8, 16);
+        const ascTube = new THREE.Mesh(tubeGeo, aortaMat);
+        ascTube.position.set(-0.5, 0.6, 0.1);
+        ascTube.rotation.z = 0.15;
+        aortaGroup.add(ascTube);
+
+        this.heartGroup.add(aortaGroup);
+        this.heartParts.aorta = aortaGroup;
+
+        // Make all meshes inside aorta group identifiable
+        aortaGroup.traverse((node) => {
+          if (node.isMesh) node.name = "aorta";
+        });
+
+        // 6. VENA CAVA
+        const cavaColor = new THREE.Color(heartData.vena_cava.color);
+        const cavaGroup = new THREE.Group();
+        cavaGroup.name = "vena_cava";
+        const cavaMat = new THREE.MeshStandardMaterial({
+          color: cavaColor,
+          roughness: 0.25,
+          metalness: 0.2,
+          emissive: cavaColor,
+          emissiveIntensity: 0.05
+        });
+
+        const supCavaGeo = new THREE.CylinderGeometry(0.18, 0.18, 1.5, 16);
+        const supCava = new THREE.Mesh(supCavaGeo, cavaMat);
+        supCava.position.set(0.7, 1.2, -0.2);
+        supCava.rotation.set(0.1, 0, -0.15);
+        cavaGroup.add(supCava);
+
+        const infCavaGeo = new THREE.CylinderGeometry(0.18, 0.18, 1.2, 16);
+        const infCava = new THREE.Mesh(infCavaGeo, cavaMat);
+        infCava.position.set(0.8, -1.2, -0.3);
+        infCava.rotation.set(-0.1, 0, -0.05);
+        cavaGroup.add(infCava);
+
+        this.heartGroup.add(cavaGroup);
+        this.heartParts.vena_cava = cavaGroup;
+        cavaGroup.traverse((node) => {
+          if (node.isMesh) node.name = "vena_cava";
+        });
+
+        // 7. PULMONARY ARTERY
+        const paColor = new THREE.Color(heartData.arteria_pulmonar.color);
+        const paGroup = new THREE.Group();
+        paGroup.name = "arteria_pulmonar";
+        const paMat = new THREE.MeshStandardMaterial({
+          color: paColor,
+          roughness: 0.3,
+          metalness: 0.15,
+          emissive: paColor,
+          emissiveIntensity: 0.05
+        });
+
+        // Main pulmonary trunk
+        const trunkGeo = new THREE.CylinderGeometry(0.18, 0.16, 1.2, 16);
+        const trunk = new THREE.Mesh(trunkGeo, paMat);
+        trunk.position.set(0.1, 0.6, 0.3);
+        trunk.rotation.set(-0.25, 0, -0.4);
+        paGroup.add(trunk);
+
+        // Branch Left
+        const branchLGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.7, 16);
+        const branchL = new THREE.Mesh(branchLGeo, paMat);
+        branchL.position.set(-0.35, 1.0, 0.15);
+        branchL.rotation.set(0.2, 0, 0.8);
+        paGroup.add(branchL);
+
+        // Branch Right
+        const branchRGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.8, 16);
+        const branchR = new THREE.Mesh(branchRGeo, paMat);
+        branchR.position.set(0.5, 0.9, -0.15);
+        branchR.rotation.set(-0.15, 0, -0.9);
+        paGroup.add(branchR);
+
+        this.heartGroup.add(paGroup);
+        this.heartParts.arteria_pulmonar = paGroup;
+        paGroup.traverse((node) => {
+          if (node.isMesh) node.name = "arteria_pulmonar";
+        });
+
+        // Cast & Receive Shadows on all parts
+        this.heartGroup.traverse((node) => {
+          if (node.isMesh) {
+            node.castShadow = true;
+            node.receiveShadow = true;
+          }
+        });
+      }
+
+      setupBloodFlow() {
+        this.particlePaths = [];
+
+        // Define smooth paths using CatmullRomCurve3
+        // 1. Oxygenated blood (Pulmonary Veins -> LA -> LV -> Aorta)
+        const oxPoints = [
+          new THREE.Vector3(-1.5, 0.7, -0.8), // entrance veins
+          new THREE.Vector3(-0.6, 0.6, -0.1), // LA
+          new THREE.Vector3(-0.5, -0.6, 0.0), // LV
+          new THREE.Vector3(-0.5, 0.6, 0.1),  // Ascending aorta connection
+          new THREE.Vector3(-0.15, 1.1, -0.2), // Arch center
+          new THREE.Vector3(-0.4, 2.2, 0.0)   // Systemic exit top branch
+        ];
+        const oxCurve = new THREE.CatmullRomCurve3(oxPoints);
+
+        // 2. Deoxygenated blood (Vena Cava -> RA -> RV -> Pulmonary Trunk)
+        const deoxPoints = [
+          new THREE.Vector3(0.7, 1.5, -0.2),  // Superior cava top
+          new THREE.Vector3(0.6, 0.6, 0.1),   // RA
+          new THREE.Vector3(0.5, -0.5, 0.15), // RV
+          new THREE.Vector3(0.1, 0.6, 0.3),   // Trunk
+          new THREE.Vector3(-0.6, 1.1, 0.2)   // Left branch exit
+        ];
+        const deoxCurve = new THREE.CatmullRomCurve3(deoxPoints);
+
+        this.particlePaths.push({
+          curve: oxCurve,
+          color: '#fca5a5', // bright oxygenated pink-red
+          count: 32,
+          particles: []
+        });
+
+        this.particlePaths.push({
+          curve: deoxCurve,
+          color: '#60a5fa', // deoxygenated light blue
+          count: 32,
+          particles: []
+        });
+
+        // Instantiate Particle Meshes
+        const particleGeo = new THREE.SphereGeometry(0.045, 8, 8);
+
+        this.particlePaths.forEach((pathInfo) => {
+          const mat = new THREE.MeshBasicMaterial({
+            color: new THREE.Color(pathInfo.color),
+            transparent: true,
+            opacity: 0.75
+          });
+
+          for (let i = 0; i < pathInfo.count; i++) {
+            const mesh = new THREE.Mesh(particleGeo, mat);
+            // Stagger particles evenly along the curve
+            const progress = i / pathInfo.count;
+            mesh.userData.progress = progress;
+            
+            const pt = pathInfo.curve.getPointAt(progress);
+            mesh.position.copy(pt);
+            
+            this.flowGroup.add(mesh);
+            pathInfo.particles.push(mesh);
+          }
+        });
+      }
+
+      // Audio engine initialization (lazy-loaded on click)
+      initAudio() {
+        if (this.audioCtx) return;
+        this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+
+      // Sound trigger
+      playHeartbeatSound() {
+        if (!this.audioEnabled || !this.audioCtx) return;
+
+        // Two parts to heartbeat: "lub" and "dub"
+        const now = this.audioCtx.currentTime;
+
+        // LUB (first tone: lower pitch, slightly longer)
+        this.triggerTone(55, 0.14, now);
+        
+        // DUB (second tone: higher pitch, slightly shorter)
+        const delay = 60 / this.bpm * 0.15; // proportion to heart rate
+        this.triggerTone(65, 0.11, now + delay);
+      }
+
+      triggerTone(freq, duration, time) {
+        const osc = this.audioCtx.createOscillator();
+        const gain = this.audioCtx.createGain();
+
+        osc.connect(gain);
+        gain.connect(this.audioCtx.destination);
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, time);
+        // Pitch drop effect for muscle dampening
+        osc.frequency.exponentialRampToValueAtTime(10, time + duration);
+
+        gain.gain.setValueAtTime(0.001, time);
+        gain.gain.linearRampToValueAtTime(0.7, time + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + duration);
+
+        osc.start(time);
+        osc.stop(time + duration);
+      }
+
+      animate() {
+        const elapsedTime = this.clock.getElapsedTime();
+        const delta = this.clock.getDelta();
+
+        // 1. Controls update
+        this.controls.update();
+
+        // 2. Heartbeat Pulsation Animation
+        const period = 60 / this.bpm; // duration of one beat in seconds
+        const t = (elapsedTime % period) / period;
+
+        // Double peak scaling representing Ventricular & Atrial systole
+        let scale = 1.0;
+        if (this.isBeating) {
+          // Lub-dub double bump math formula
+          const lub = Math.sin(t * Math.PI * 2) * Math.exp(-t * 8);
+          const dub = Math.sin((t - 0.25) * Math.PI * 2) * Math.exp(-(t - 0.25) * 8);
+          
+          let bump = 0;
+          if (t < 0.25) bump = lub * 0.08;
+          else if (t >= 0.25 && t < 0.6) bump = dub * 0.05;
+
+          scale += bump;
+
+          // Sound trigger alignment
+          // Triggers sound once at the start of the 'lub' beat
+          if (!this.lastLubTrigger || this.lastLubTrigger > t) {
+            this.playHeartbeatSound();
+          }
+          this.lastLubTrigger = t;
+        }
+
+        // Apply scale pulse to muscle parts
+        const muscles = ['ventriculo_izq', 'ventriculo_der', 'auricula_izq', 'auricula_der'];
+        muscles.forEach((partName) => {
+          const mesh = this.heartParts[partName];
+          if (mesh) {
+            mesh.scale.set(scale, scale, scale);
+          }
+        });
+
+        // Subtle rotation over time to show dynamic shape
+        if (!this.controls.state === -1) {
+          this.heartGroup.rotation.y = Math.sin(elapsedTime * 0.15) * 0.12;
+          this.flowGroup.rotation.y = this.heartGroup.rotation.y;
+        }
+
+        // 3. Blood Flow Particle Animation
+        if (this.showFlow) {
+          const flowSpeed = (this.bpm / 75) * 0.12; // speed scales with heart rate
+          this.particlePaths.forEach((pathInfo) => {
+            pathInfo.particles.forEach((particle) => {
+              let progress = particle.userData.progress;
+              progress += flowSpeed * this.clock.getDelta() * 1.5;
+              if (progress > 1.0) progress -= 1.0;
+              particle.userData.progress = progress;
+
+              const pt = pathInfo.curve.getPointAt(progress);
+              particle.position.copy(pt);
+              particle.visible = true;
+            });
+          });
+        } else {
+          this.particlePaths.forEach((pathInfo) => {
+            pathInfo.particles.forEach((particle) => {
+              particle.visible = false;
+            });
+          });
+        }
+
+        // 4. Highlight hover pulse effect
+        if (this.hoveredPart && this.hoveredPart !== this.selectedPart) {
+          this.hoveredPart.traverse((node) => {
+            if (node.isMesh) {
+              const baseIntensity = this.renderMode === 'xray' ? 0.4 : 0.05;
+              node.material.emissiveIntensity = baseIntensity + Math.sin(elapsedTime * 12) * 0.15;
+            }
+          });
+        }
+
+        // 5. Render Scene
+        this.renderer.render(this.scene, this.camera);
+        
+        this.animationFrameId = requestAnimationFrame(() => this.animate());
+      }
+
+      onResize() {
+        const width = this.container.clientWidth;
+        const height = this.container.clientHeight;
+
+        this.camera.aspect = width / height;
+        this.camera.updateProjectionMatrix();
+
+        this.renderer.setSize(width, height);
+      }
+
+      onPointerMove(event) {
+        // Calculate pointer position in normalized device coordinates
+        // (-1 to +1) for raycasting
+        const rect = this.renderer.domElement.getBoundingClientRect();
+        this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        this.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+        this.raycaster.setFromCamera(this.pointer, this.camera);
+        const intersects = this.raycaster.intersectObjects(this.heartGroup.children, true);
+
+        if (intersects.length > 0) {
+          const hitObject = this.getRootPart(intersects[0].object);
+          
+          if (this.hoveredPart !== hitObject) {
+            this.clearHover();
+            this.hoveredPart = hitObject;
+            document.body.style.cursor = 'pointer';
+          }
+        } else {
+          if (this.hoveredPart) {
+            this.clearHover();
+            document.body.style.cursor = 'default';
+          }
+        }
+      }
+
+      onPointerDown(event) {
+        this.raycaster.setFromCamera(this.pointer, this.camera);
+        const intersects = this.raycaster.intersectObjects(this.heartGroup.children, true);
+
+        if (intersects.length > 0) {
+          const hitObject = this.getRootPart(intersects[0].object);
+          this.selectPart(hitObject);
+        }
+      }
+
+      // Traverses upwards to find the main named group/mesh
+      getRootPart(object) {
+        let current = object;
+        while (current.parent && current.parent !== this.scene && current.parent !== this.heartGroup) {
+          current = current.parent;
+        }
+        return current;
+      }
+
+      clearHover() {
+        if (!this.hoveredPart) return;
+        
+        // Reset emissive intensity
+        this.hoveredPart.traverse((node) => {
+          if (node.isMesh) {
+            const isSelected = this.hoveredPart === this.selectedPart;
+            node.material.emissiveIntensity = isSelected ? 0.35 : (this.renderMode === 'xray' ? 0.4 : 0.05);
+          }
+        });
+        this.hoveredPart = null;
+      }
+
+      selectPart(part) {
+        // Deselect previous
+        if (this.selectedPart) {
+          const prevMode = this.renderMode;
+          this.selectedPart.traverse((node) => {
+            if (node.isMesh) {
+              node.material.emissiveIntensity = prevMode === 'xray' ? 0.4 : 0.05;
+              node.material.opacity = prevMode === 'xray' ? 0.25 : 1.0;
+            }
+          });
+        }
+
+        // If clicking selected again, deselect everything
+        if (this.selectedPart === part) {
+          this.selectedPart = null;
+          this.updateHUD(null);
+          this.heartGroup.traverse((node) => {
+            if (node.isMesh) {
+              node.material.opacity = this.renderMode === 'xray' ? 0.25 : 1.0;
+            }
+          });
+          return;
+        }
+
+        this.selectedPart = part;
+        const partKey = part.name;
+        this.updateHUD(heartData[partKey]);
+
+        // Visual highlight for selected part (isolate it visually)
+        this.heartGroup.traverse((node) => {
+          if (node.isMesh) {
+            const root = this.getRootPart(node);
+            const isSelected = root === this.selectedPart;
+            
+            if (isSelected) {
+              node.material.emissiveIntensity = 0.45;
+              node.material.opacity = 1.0; // full solid for selection
+            } else {
+              // Dim down others
+              node.material.emissiveIntensity = this.renderMode === 'xray' ? 0.2 : 0.01;
+              node.material.opacity = this.renderMode === 'xray' ? 0.1 : 0.35;
+            }
+          }
+        });
+
+        // Smooth camera target focal transition
+        const targetPos = new THREE.Vector3();
+        part.getWorldPosition(targetPos);
+        
+        // Smoothly adjust control target towards the clicked center
+        const startTarget = this.controls.target.clone();
+        const duration = 20; // animation steps
+        let step = 0;
+        
+        const panCamera = () => {
+          if (step >= duration || !this.selectedPart) return;
+          this.controls.target.lerpVectors(startTarget, targetPos, step / duration);
+          step++;
+          requestAnimationFrame(panCamera);
+        };
+        panCamera();
+      }
+
+      updateHUD(data) {
+        const infoDefault = document.getElementById('info-default');
+        const infoDetail = document.getElementById('info-detail');
+
+        if (!data) {
+          infoDefault.style.display = 'block';
+          infoDetail.style.display = 'none';
+          return;
+        }
+
+        infoDefault.style.display = 'none';
+        infoDetail.style.display = 'block';
+
+        // Set content
+        document.getElementById('part-id').innerText = data.id;
+        document.getElementById('part-name').innerText = data.name;
+        document.getElementById('part-desc').innerText = data.desc;
+        document.getElementById('part-pressure').innerText = data.pressure;
+        document.getElementById('part-function').innerText = data.func;
+
+        // Handle oxygen badge styling
+        const badge = document.getElementById('part-oxygen');
+        badge.className = `oxygen-badge ${data.oxygen}`;
+        if (data.oxygen === 'oxygenated') {
+          badge.innerHTML = `<i class="fa-solid fa-droplet"></i> Oxigenada`;
+        } else if (data.oxygen === 'deoxygenated') {
+          badge.innerHTML = `<i class="fa-solid fa-droplet"></i> Carboxigenada`;
+        } else {
+          badge.innerHTML = `<i class="fa-solid fa-sync"></i> Conexión`;
+        }
+      }
+
+      setRenderMode(mode) {
+        this.renderMode = mode;
+        const isXray = mode === 'xray';
+
+        this.heartGroup.traverse((node) => {
+          if (node.isMesh) {
+            const root = this.getRootPart(node);
+            const isSelected = root === this.selectedPart;
+
+            node.material.transparent = true;
+            
+            if (isSelected) {
+              node.material.opacity = 1.0;
+              node.material.emissiveIntensity = 0.45;
+            } else {
+              node.material.opacity = isXray ? 0.25 : 1.0;
+              node.material.emissiveIntensity = isXray ? 0.4 : 0.05;
+              node.material.depthWrite = !isXray; // fixes depth ordering issues in xray
+            }
+          }
+        });
+      }
+
+      destroy() {
+        if (this.animationFrameId !== null) {
+          cancelAnimationFrame(this.animationFrameId);
+        }
+
+        window.removeEventListener('resize', this.resizeHandler);
+        this.renderer.domElement.removeEventListener('pointerdown', this.pointerDownHandler);
+        this.renderer.domElement.removeEventListener('pointermove', this.pointerMoveHandler);
+
+        // Dispose geometries and materials
+        this.heartGroup.traverse((node) => {
+          if (node.isMesh) {
+            node.geometry.dispose();
+            node.material.dispose();
+          }
+        });
+
+        this.flowGroup.traverse((node) => {
+          if (node.isMesh) {
+            node.geometry.dispose();
+            node.material.dispose();
+          }
+        });
+
+        this.controls.dispose();
+        this.renderer.dispose();
+        
+        if (this.renderer.domElement.parentNode) {
+          this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
+        }
+
+        if (this.audioCtx) {
+          this.audioCtx.close();
+        }
+      }
+    }
+
+    // Application Lifecycle Orchestration
+    document.addEventListener('DOMContentLoaded', () => {
+      const sim = new HeartSimulation('canvas-container');
+
+      // Bind HUD Control Listeners
+      
+      // Play/Pause Beating
+      const btnPlay = document.getElementById('btn-play');
+      btnPlay.addEventListener('click', () => {
+        sim.isBeating = !sim.isBeating;
+        btnPlay.className = `control-btn ${sim.isBeating ? 'active' : ''}`;
+        btnPlay.innerHTML = sim.isBeating ? '<i class="fa-solid fa-pause"></i>' : '<i class="fa-solid fa-play"></i>';
+      });
+
+      // Sound Control (Requires User Action to init Web Audio)
+      const btnAudio = document.getElementById('btn-audio');
+      btnAudio.addEventListener('click', () => {
+        sim.initAudio();
+        sim.audioEnabled = !sim.audioEnabled;
+        btnAudio.className = `control-btn ${sim.audioEnabled ? 'active' : ''}`;
+        btnAudio.innerHTML = sim.audioEnabled ? '<i class="fa-solid fa-volume-up"></i>' : '<i class="fa-solid fa-volume-mute"></i>';
+        
+        // Context resume in case browser suspended it
+        if (sim.audioEnabled && sim.audioCtx && sim.audioCtx.state === 'suspended') {
+          sim.audioCtx.resume();
+        }
+      });
+
+      // BPM Slider
+      const bpmSlider = document.getElementById('bpm-slider');
+      const bpmValue = document.getElementById('bpm-value');
+      bpmSlider.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value);
+        sim.bpm = val;
+        bpmValue.innerText = `${val} BPM`;
+      });
+
+      // Render Mode
+      const modeAnatomical = document.getElementById('mode-anatomical');
+      const modeXray = document.getElementById('mode-xray');
+
+      modeAnatomical.addEventListener('click', () => {
+        modeAnatomical.classList.add('active');
+        modeXray.classList.remove('active');
+        sim.setRenderMode('anatomical');
+      });
+
+      modeXray.addEventListener('click', () => {
+        modeXray.classList.add('active');
+        modeAnatomical.classList.remove('active');
+        sim.setRenderMode('xray');
+      });
+
+      // Flow Particles
+      const btnFlow = document.getElementById('btn-flow');
+      btnFlow.addEventListener('click', () => {
+        sim.showFlow = !sim.showFlow;
+        btnFlow.className = `control-btn ${sim.showFlow ? 'active' : ''}`;
+      });
+      
+      // Prevent memory leaks on close/refresh
+      window.addEventListener('beforeunload', () => {
+        sim.destroy();
+      });
+    });
+  </script>
+</body>
+</html>

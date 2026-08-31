@@ -1,0 +1,1915 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#050812">
+  <title>Laboratorio 3D de Tiro Parabólico</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #050812;
+      --panel: rgba(13, 23, 42, 0.82);
+      --panel-solid: #0d172a;
+      --cyan: #37e6ff;
+      --orange: #ff9f43;
+      --text: #f5f7ff;
+      --muted: #9aabc5;
+      --line: rgba(148, 174, 214, 0.2);
+      --radius: 22px;
+      --shadow: 0 24px 70px rgba(0, 0, 0, 0.35);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html { min-width: 320px; background: var(--bg); }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+      background:
+        radial-gradient(circle at 12% 8%, rgba(55, 230, 255, 0.13), transparent 34rem),
+        radial-gradient(circle at 88% 18%, rgba(255, 159, 67, 0.09), transparent 30rem),
+        var(--bg);
+    }
+
+    button, input { font: inherit; }
+    button { color: inherit; }
+
+    .app-shell {
+      width: min(1480px, 100%);
+      margin: 0 auto;
+      padding: clamp(18px, 3vw, 42px);
+    }
+
+    .hero {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 22px;
+    }
+
+    .eyebrow {
+      margin: 0 0 7px;
+      color: var(--cyan);
+      font-size: 0.78rem;
+      font-weight: 800;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      max-width: 920px;
+      margin: 0;
+      font-size: clamp(2rem, 5vw, 4.8rem);
+      line-height: 0.98;
+      letter-spacing: -0.055em;
+    }
+
+    .hero h1 + p {
+      max-width: 720px;
+      margin: 15px 0 0;
+      color: var(--muted);
+      font-size: clamp(1rem, 1.6vw, 1.18rem);
+    }
+
+    .status-pill {
+      flex: 0 0 auto;
+      padding: 10px 15px;
+      border: 1px solid rgba(55, 230, 255, 0.35);
+      border-radius: 999px;
+      color: var(--cyan);
+      background: rgba(55, 230, 255, 0.08);
+      font-size: 0.86rem;
+      font-weight: 750;
+      white-space: nowrap;
+    }
+
+    .mode-tabs {
+      display: flex;
+      width: fit-content;
+      max-width: 100%;
+      gap: 6px;
+      margin-bottom: 18px;
+      padding: 5px;
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(8, 14, 28, 0.7);
+    }
+
+    .mode-tab, .preset-row button, .action-row button {
+      border: 1px solid transparent;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 750;
+      transition: color 160ms ease, border-color 160ms ease, background 160ms ease, transform 160ms ease;
+    }
+
+    .mode-tab {
+      padding: 9px 17px;
+      color: var(--muted);
+      background: transparent;
+    }
+
+    .mode-tab:hover, .mode-tab.active {
+      color: #041117;
+      background: var(--cyan);
+    }
+
+    .laboratory-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.8fr) minmax(280px, 0.72fr);
+      gap: 18px;
+    }
+
+    .scene-card, .control-card, .metric-strip article, .learning-panel {
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+      background: var(--panel);
+      backdrop-filter: blur(16px);
+    }
+
+    .scene-card {
+      min-height: 560px;
+      position: relative;
+      overflow: hidden;
+      border-radius: var(--radius);
+      background:
+        linear-gradient(rgba(55, 230, 255, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(55, 230, 255, 0.035) 1px, transparent 1px),
+        radial-gradient(circle at 50% 35%, #142642 0, #091121 55%, #050812 100%);
+      background-size: 34px 34px, 34px 34px, auto;
+    }
+
+    #sceneCanvas {
+      width: 100%;
+      height: 100%;
+      min-height: 560px;
+      display: block;
+    }
+
+    .scene-fallback {
+      position: absolute;
+      inset: 50% auto auto 50%;
+      width: min(80%, 520px);
+      margin: 0;
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(5, 8, 18, 0.92);
+      color: var(--text);
+      line-height: 1.6;
+      text-align: center;
+      transform: translate(-50%, -50%);
+    }
+
+    .scene-legend {
+      position: absolute;
+      right: 16px;
+      bottom: 16px;
+      left: 16px;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 0.78rem;
+      pointer-events: none;
+    }
+
+    .control-card {
+      display: flex;
+      flex-direction: column;
+      gap: 11px;
+      padding: clamp(18px, 2.2vw, 26px);
+      border-radius: var(--radius);
+    }
+
+    .control-card > label:not(.toggle) {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 14px;
+      margin-top: 5px;
+      font-weight: 700;
+    }
+
+    output { color: var(--cyan); font-variant-numeric: tabular-nums; }
+
+    input[type="range"] {
+      width: 100%;
+      margin: 0 0 8px;
+      accent-color: var(--cyan);
+      cursor: pointer;
+    }
+
+    .preset-row, .action-row { display: flex; gap: 9px; }
+
+    .preset-row button {
+      flex: 1;
+      padding: 9px;
+      color: var(--muted);
+      border-color: var(--line);
+      background: rgba(5, 8, 18, 0.45);
+    }
+
+    .preset-row button:hover, .preset-row button[aria-pressed="true"] {
+      color: var(--cyan);
+      border-color: rgba(55, 230, 255, 0.55);
+      background: rgba(55, 230, 255, 0.08);
+    }
+
+    .action-row { margin: 7px 0 3px; }
+
+    .action-row button {
+      flex: 1;
+      min-height: 46px;
+      padding: 10px 13px;
+      border-color: var(--line);
+      background: #17243a;
+    }
+
+    #launchButton {
+      color: #1d0e00;
+      border-color: var(--orange);
+      background: var(--orange);
+    }
+
+    .action-row button:hover { transform: translateY(-2px); }
+
+    #newChallengeButton {
+      width: 100%;
+      min-height: 42px;
+      padding: 9px 13px;
+      border: 1px solid rgba(55, 230, 255, 0.55);
+      border-radius: 10px;
+      color: var(--cyan);
+      background: rgba(55, 230, 255, 0.08);
+      cursor: pointer;
+      font-weight: 750;
+    }
+
+    #newChallengeButton:hover { background: rgba(55, 230, 255, 0.16); }
+
+    .toggle {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted);
+      cursor: pointer;
+    }
+
+    .toggle input { width: 1.1rem; height: 1.1rem; accent-color: var(--cyan); }
+
+    .metric-strip {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .metric-strip article {
+      display: grid;
+      gap: 5px;
+      padding: 17px 19px;
+      border-radius: 16px;
+    }
+
+    .metric-strip span { color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.09em; }
+    .metric-strip strong { font-size: clamp(1rem, 2vw, 1.32rem); font-variant-numeric: tabular-nums; }
+
+    .learning-panel {
+      min-height: 74px;
+      margin-top: 12px;
+      padding: 18px;
+      border-radius: 16px;
+    }
+
+    .trajectory-graph {
+      margin: 12px 0 0;
+      padding: 16px 18px 12px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      background: var(--panel);
+    }
+
+    .trajectory-graph svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      min-height: 150px;
+      color: var(--cyan);
+      overflow: visible;
+    }
+
+    .trajectory-graph figcaption {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 0.82rem;
+      text-align: center;
+    }
+
+    .challenge-metadata {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin: 14px 0 0;
+    }
+
+    .challenge-metadata div {
+      display: grid;
+      gap: 3px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: rgba(5, 8, 18, 0.38);
+    }
+
+    .challenge-metadata dt {
+      color: var(--muted);
+      font-size: 0.7rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .challenge-metadata dd { margin: 0; font-weight: 750; font-variant-numeric: tabular-nums; }
+
+    :focus-visible { outline: 3px solid var(--orange); outline-offset: 3px; }
+
+    @media (max-width: 900px) {
+      .hero { align-items: flex-start; flex-direction: column; }
+      .laboratory-layout { grid-template-columns: 1fr; }
+      .scene-card, #sceneCanvas { min-height: 430px; }
+      .metric-strip { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (max-width: 520px) {
+      .app-shell { padding: 12px; }
+      .hero { margin-top: 10px; }
+      .status-pill { white-space: normal; }
+      .mode-tabs { width: 100%; }
+      .mode-tab { flex: 1; padding-inline: 10px; }
+      .scene-card, #sceneCanvas { min-height: 340px; }
+      .scene-legend { align-items: flex-start; flex-direction: column; }
+      .metric-strip article { padding: 14px; }
+      .challenge-metadata { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+      }
+    }
+  </style>
+  <script type="importmap">
+    {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"}}
+  </script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">Laboratorio interactivo · Física universitaria</p>
+        <h1>Laboratorio 3D de Tiro Parabólico</h1>
+        <p>Explora cómo velocidad, ángulo y gravedad construyen una trayectoria.</p>
+      </div>
+      <div id="simulationStatus" class="status-pill" role="status" aria-live="polite">Listo para experimentar</div>
+    </header>
+
+    <nav class="mode-tabs" role="tablist" aria-label="Modos del laboratorio">
+      <button type="button" class="mode-tab active" role="tab" id="exploreTab" data-mode="explore" aria-controls="learningPanel" aria-selected="true" aria-pressed="true">Explorar</button>
+      <button type="button" class="mode-tab" role="tab" id="understandTab" data-mode="understand" aria-controls="learningPanel" aria-selected="false" aria-pressed="false">Comprender</button>
+      <button type="button" class="mode-tab" role="tab" id="challengeTab" data-mode="challenge" aria-controls="learningPanel" aria-selected="false" aria-pressed="false">Desafío</button>
+    </nav>
+
+    <main class="laboratory-layout">
+      <section class="scene-card" aria-label="Escena tridimensional del lanzamiento">
+        <canvas id="sceneCanvas" tabindex="0" aria-label="Simulación 3D del tiro parabólico"
+                aria-describedby="sceneInstructions"></canvas>
+        <p id="sceneFallback" class="scene-fallback" hidden>
+          La vista 3D no está disponible en este dispositivo. Puedes continuar explorando
+          el tiro parabólico con los controles, las métricas y las fórmulas del laboratorio.
+        </p>
+        <div id="sceneInstructions" class="scene-legend">
+          <span>Arrastra para rotar · Rueda para acercar</span>
+          <span>Usa las flechas para desplazar la cámara. La vista 3D es complementaria.</span>
+        </div>
+      </section>
+
+      <aside class="control-card" aria-label="Controles de la simulación">
+        <label for="speedInput">Velocidad inicial <output id="speedOutput">30 m/s</output></label>
+        <input id="speedInput" type="range" min="5" max="60" step="1" value="30">
+
+        <label for="angleInput">Ángulo <output id="angleOutput">45°</output></label>
+        <input id="angleInput" type="range" min="5" max="85" step="1" value="45">
+
+        <label for="gravityInput">Gravedad <output id="gravityOutput">9.8 m/s²</output></label>
+        <input id="gravityInput" type="range" min="1.6" max="25" step="0.1" value="9.8">
+
+        <div class="preset-row" aria-label="Presets de gravedad">
+          <button type="button" data-gravity="9.8" aria-pressed="true">Tierra</button>
+          <button type="button" data-gravity="1.6" aria-pressed="false">Luna</button>
+          <button type="button" data-gravity="3.7" aria-pressed="false">Marte</button>
+        </div>
+
+        <div class="action-row">
+          <button type="button" id="launchButton">Lanzar</button>
+          <button type="button" id="resetButton">Reiniciar</button>
+        </div>
+        <button type="button" id="newChallengeButton" hidden>Nuevo desafío</button>
+
+        <label class="toggle"><input id="vectorsToggle" type="checkbox" checked> Mostrar vectores</label>
+        <label class="toggle"><input id="formulasToggle" type="checkbox"> Mostrar fórmulas</label>
+      </aside>
+    </main>
+
+    <section class="metric-strip" aria-label="Resultados calculados">
+      <article><span>Tiempo</span><strong id="flightTimeMetric">4.33 s</strong></article>
+      <article><span>Alcance</span><strong id="rangeMetric">91.84 m</strong></article>
+      <article><span>Altura</span><strong id="heightMetric">22.96 m</strong></article>
+      <article><span>Componentes</span><strong id="velocityMetric">21.21 / 21.21 m/s</strong></article>
+    </section>
+
+    <figure id="trajectoryGraphFigure" class="trajectory-graph">
+      <svg id="trajectoryGraph" viewBox="0 0 600 220" role="img" tabindex="0" aria-labelledby="graphTitle graphDescription">
+        <title id="graphTitle">Gráfica de la trayectoria</title>
+        <desc id="graphDescription">Altura del proyectil respecto a la distancia horizontal.</desc>
+        <path id="graphPath" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"></path>
+      </svg>
+      <figcaption>Altura respecto a distancia horizontal</figcaption>
+    </figure>
+
+    <section id="learningPanel" class="learning-panel" aria-live="polite"></section>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    const SCENE_LAUNCH_HEIGHT = 3.4;
+    const VISUAL_SURFACE_OFFSET = 1.75;
+    const GROUND_SIZE = 2600;
+    const GROUND_CENTER_X = 1250;
+    const CAMERA_FAR = 5000;
+    const CONTROLS_MAX_DISTANCE = 3000;
+    const EXPLORE_TARGET_X = 70;
+
+    function toRadians(degrees) {
+      return degrees * Math.PI / 180;
+    }
+
+    function computeMetrics(speed, angleDegrees, gravity) {
+      const angle = toRadians(angleDegrees);
+      const vx = speed * Math.cos(angle);
+      const vy = speed * Math.sin(angle);
+      const timeOfFlight = 2 * vy / gravity;
+      const maxHeight = vy * vy / (2 * gravity);
+      const range = vx * timeOfFlight;
+
+      return { vx, vy, timeOfFlight, maxHeight, range };
+    }
+
+    function computeChallengeMetrics(speed, angleDegrees, gravity, launchHeight) {
+      const metrics = computeMetrics(speed, angleDegrees, gravity);
+      const discriminant = metrics.vy ** 2 + 2 * gravity * launchHeight;
+      const timeOfFlight = (
+        metrics.vy + Math.sqrt(Math.max(discriminant, 0))
+      ) / gravity;
+      return {
+        ...metrics,
+        timeOfFlight,
+        maxHeight: launchHeight + metrics.maxHeight,
+        range: metrics.vx * timeOfFlight,
+      };
+    }
+
+    function positionAt(time, vx, vy, gravity) {
+      return {
+        x: vx * time,
+        y: Math.max(0, vy * time - 0.5 * gravity * time * time),
+      };
+    }
+
+    function mulberry32(seed) {
+      let value = seed >>> 0;
+      return () => {
+        value = (value + 0x6D2B79F5) >>> 0;
+        let result = value;
+        result = Math.imul(result ^ (result >>> 15), result | 1);
+        result ^= result + Math.imul(result ^ (result >>> 7), result | 61);
+        return ((result ^ (result >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    const CHALLENGE_TYPES = [
+      'ground-to-rooftop',
+      'rooftop-to-ground',
+      'rooftop-to-rooftop',
+    ];
+    const CHALLENGE_MAX_ATTEMPTS = 24;
+    const CHALLENGE_CLEARANCE = 4;
+
+    const randomBetween = (random, minimum, maximum) => (
+      minimum + (maximum - minimum) * random()
+    );
+    const randomInteger = (random, minimum, maximum) => (
+      Math.floor(randomBetween(random, minimum, maximum + 1))
+    );
+
+    function createChallengeCandidate(seed, attempt) {
+      const attemptSeed = ((seed >>> 0) + Math.imul(attempt, 0x9E3779B9)) >>> 0;
+      const random = mulberry32(attemptSeed);
+      const scenarioType = CHALLENGE_TYPES[Math.floor(random() * CHALLENGE_TYPES.length)];
+      const launchOnRooftop = scenarioType !== 'ground-to-rooftop';
+      const targetOnRooftop = scenarioType !== 'rooftop-to-ground';
+      const launchHeight = launchOnRooftop ? randomInteger(random, 12, 28) : 0;
+      const hiddenSolution = {
+        speed: randomInteger(random, 30, 55),
+        angle: randomInteger(random, 35, 60),
+        gravity: [9.8, 3.7, 1.6][randomInteger(random, 0, 2)],
+        launchHeight,
+      };
+      const angle = toRadians(hiddenSolution.angle);
+      const vx = hiddenSolution.speed * Math.cos(angle);
+      const vy = hiddenSolution.speed * Math.sin(angle);
+      const landingTime = (
+        vy + Math.sqrt(vy * vy + 2 * hiddenSolution.gravity * launchHeight)
+      ) / hiddenSolution.gravity;
+      const targetTime = targetOnRooftop
+        ? landingTime * randomBetween(random, 0.55, 0.78)
+        : landingTime;
+      const targetX = vx * targetTime;
+      const targetY = targetOnRooftop
+        ? launchHeight + vy * targetTime
+          - 0.5 * hiddenSolution.gravity * targetTime * targetTime
+        : 0;
+      const launchSupportId = launchOnRooftop ? 'building-launch' : null;
+      const targetSupportId = targetOnRooftop ? 'building-target' : null;
+      const buildings = [];
+
+      if (launchOnRooftop) {
+        buildings.push({
+          id: launchSupportId,
+          x: -5,
+          width: 10,
+          height: launchHeight,
+        });
+      }
+      if (targetOnRooftop) {
+        buildings.push({
+          id: targetSupportId,
+          x: targetX - 2.5,
+          width: 5,
+          height: targetY,
+        });
+      }
+
+      const buildingCount = randomInteger(random, 3, 7);
+      let leftEdge = launchOnRooftop ? -10 : -CHALLENGE_CLEARANCE - 2;
+      let rightEdge = targetX + (targetOnRooftop ? 10 : CHALLENGE_CLEARANCE + 2);
+      while (buildings.length < buildingCount) {
+        const width = randomInteger(random, 7, 14);
+        const height = randomInteger(random, 8, 32);
+        const placeOnLeft = buildings.length % 2 === 0;
+        if (placeOnLeft) {
+          const x = leftEdge - width;
+          buildings.push({
+            id: `building-${buildings.length + 1}`,
+            x,
+            width,
+            height,
+          });
+          leftEdge = x - randomInteger(random, 3, 7);
+        } else {
+          buildings.push({
+            id: `building-${buildings.length + 1}`,
+            x: rightEdge,
+            width,
+            height,
+          });
+          rightEdge += width + randomInteger(random, 3, 7);
+        }
+      }
+
+      buildings.sort((first, second) => first.x - second.x);
+      return {
+        seed,
+        scenarioType,
+        launch: {
+          x: 0,
+          y: launchHeight,
+          supportBuildingId: launchSupportId,
+        },
+        target: {
+          x: targetX,
+          y: targetY,
+          radius: 2.5,
+          supportBuildingId: targetSupportId,
+        },
+        buildings,
+        hiddenSolution,
+        attempts: attempt,
+      };
+    }
+
+    const isFiniteNumber = value => typeof value === 'number' && Number.isFinite(value);
+    const nearlyEqual = (first, second, tolerance = 1e-7) => (
+      Math.abs(first - second) <= tolerance
+    );
+
+    function validateChallenge(challenge) {
+      if (!challenge || !CHALLENGE_TYPES.includes(challenge.scenarioType)) return false;
+      if (!Number.isInteger(challenge.seed)) return false;
+      if (
+        !Number.isInteger(challenge.attempts)
+        || challenge.attempts < 1
+        || challenge.attempts > CHALLENGE_MAX_ATTEMPTS
+      ) return false;
+      if (!challenge.launch || !challenge.target || !challenge.hiddenSolution) return false;
+      if (!Array.isArray(challenge.buildings)) return false;
+      if (challenge.buildings.length < 3 || challenge.buildings.length > 7) return false;
+
+      const { launch, target, hiddenSolution, buildings } = challenge;
+      const points = [launch.x, launch.y, target.x, target.y, target.radius];
+      const solutionValues = [
+        hiddenSolution.speed,
+        hiddenSolution.angle,
+        hiddenSolution.gravity,
+        hiddenSolution.launchHeight,
+      ];
+      if (![...points, ...solutionValues].every(isFiniteNumber)) return false;
+      if (
+        launch.x !== 0
+        || launch.y < 0
+        || target.x <= launch.x
+        || target.y < 0
+        || target.radius <= 0
+        || hiddenSolution.speed <= 0
+        || hiddenSolution.angle <= 0
+        || hiddenSolution.angle >= 90
+        || hiddenSolution.gravity <= 0
+        || !nearlyEqual(hiddenSolution.launchHeight, launch.y)
+      ) return false;
+
+      const ids = new Set();
+      for (const building of buildings) {
+        if (
+          !building
+          || typeof building.id !== 'string'
+          || ids.has(building.id)
+          || !isFiniteNumber(building.x)
+          || !isFiniteNumber(building.width)
+          || !isFiniteNumber(building.height)
+          || building.width <= 0
+          || building.height <= 0
+        ) return false;
+        ids.add(building.id);
+      }
+      for (let firstIndex = 0; firstIndex < buildings.length; firstIndex += 1) {
+        const first = buildings[firstIndex];
+        for (let secondIndex = firstIndex + 1; secondIndex < buildings.length; secondIndex += 1) {
+          const second = buildings[secondIndex];
+          if (
+            first.x < second.x + second.width
+            && second.x < first.x + first.width
+          ) return false;
+        }
+      }
+
+      const validateSupport = (point, supportId) => {
+        if (supportId === null) return nearlyEqual(point.y, 0);
+        const support = buildings.find(building => building.id === supportId);
+        return Boolean(
+          support
+          && point.x >= support.x
+          && point.x <= support.x + support.width
+          && nearlyEqual(point.y, support.height),
+        );
+      };
+      if (!validateSupport(launch, launch.supportBuildingId)) return false;
+      if (!validateSupport(target, target.supportBuildingId)) return false;
+
+      const expectedSupports = {
+        'ground-to-rooftop': [null, 'building-target'],
+        'rooftop-to-ground': ['building-launch', null],
+        'rooftop-to-rooftop': ['building-launch', 'building-target'],
+      }[challenge.scenarioType];
+      if (
+        launch.supportBuildingId !== expectedSupports[0]
+        || target.supportBuildingId !== expectedSupports[1]
+      ) return false;
+
+      const angle = toRadians(hiddenSolution.angle);
+      const vx = hiddenSolution.speed * Math.cos(angle);
+      const vy = hiddenSolution.speed * Math.sin(angle);
+      const targetTime = (target.x - launch.x) / vx;
+      const solutionY = launch.y + vy * targetTime
+        - 0.5 * hiddenSolution.gravity * targetTime * targetTime;
+      if (targetTime <= 0 || !nearlyEqual(solutionY, target.y, 1e-6)) return false;
+
+      const supportIds = new Set([
+        launch.supportBuildingId,
+        target.supportBuildingId,
+      ].filter(Boolean));
+      const trajectoryYAt = x => {
+        const time = (x - launch.x) / vx;
+        return launch.y + vy * time
+          - 0.5 * hiddenSolution.gravity * time * time;
+      };
+      const trajectoryClearsBuilding = building => {
+        const overlapStart = Math.max(building.x, launch.x);
+        const overlapEnd = Math.min(building.x + building.width, target.x);
+        if (overlapStart > overlapEnd) return true;
+
+        const startY = trajectoryYAt(overlapStart);
+        const endY = trajectoryYAt(overlapEnd);
+        const launchContact = building.id === launch.supportBuildingId
+          && nearlyEqual(overlapStart, launch.x)
+          && nearlyEqual(startY, building.height, 1e-6);
+        const targetContact = building.id === target.supportBuildingId
+          && nearlyEqual(overlapEnd, target.x)
+          && nearlyEqual(endY, building.height, 1e-6);
+        if (nearlyEqual(overlapStart, overlapEnd)) {
+          return startY > building.height + 1e-6 || launchContact || targetContact;
+        }
+
+        return (startY > building.height + 1e-6 || launchContact)
+          && (endY > building.height + 1e-6 || targetContact);
+      };
+      return buildings.every(building => (
+        trajectoryClearsBuilding(building)
+        && (
+          supportIds.has(building.id)
+          || building.x + building.width <= launch.x - CHALLENGE_CLEARANCE
+          || building.x >= target.x + CHALLENGE_CLEARANCE
+        )
+      ));
+    }
+
+    function generateChallenge(seed) {
+      const numericSeed = Number(seed);
+      if (!Number.isSafeInteger(numericSeed)) {
+        throw new TypeError('Challenge seed must be a safe integer');
+      }
+      const normalizedSeed = numericSeed >>> 0;
+      const rejectionHook = globalThis.__PROJECTILE_LAB_TEST__?.rejectChallengeCandidate;
+      for (let attempt = 1; attempt <= CHALLENGE_MAX_ATTEMPTS; attempt += 1) {
+        const challenge = createChallengeCandidate(normalizedSeed, attempt);
+        if (typeof rejectionHook === 'function' && rejectionHook(challenge, attempt)) continue;
+        if (validateChallenge(challenge)) return challenge;
+      }
+      throw new Error(`Unable to generate a valid challenge for seed ${normalizedSeed}`);
+    }
+
+    // Continuous collision helpers operate on the physics x/y plane.  A swept
+    // point is expanded by the projectile radius so fast frames cannot tunnel
+    // through a building or the ground.
+    function segmentVsExpandedAabb(start, end, box, radius = 0) {
+      if (!start || !end || !box) return null;
+      const r = Math.max(0, Number(radius) || 0);
+      const boxMinX = Number.isFinite(box.minX) ? box.minX : box.x;
+      const boxMaxX = Number.isFinite(box.maxX) ? box.maxX : box.x + box.width;
+      const boxMinY = Number.isFinite(box.minY) ? box.minY : (box.y || 0);
+      const boxMaxY = Number.isFinite(box.maxY) ? box.maxY : boxMinY + box.height;
+      if (![boxMinX, boxMaxX, boxMinY, boxMaxY].every(Number.isFinite)) return null;
+      const minX = boxMinX - r;
+      const maxX = boxMaxX + r;
+      const minY = boxMinY - r;
+      const maxY = boxMaxY + r;
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      let entry = 0;
+      let exit = 1;
+      let entryAxis = null;
+      const clip = (origin, delta, min, max, axis) => {
+        if (Math.abs(delta) < 1e-12) return origin >= min && origin <= max;
+        let t1 = (min - origin) / delta;
+        let t2 = (max - origin) / delta;
+        let side = 'min';
+        if (t1 > t2) { const swap = t1; t1 = t2; t2 = swap; side = 'max'; }
+        if (t1 > entry) { entry = t1; entryAxis = { axis, side }; }
+        exit = Math.min(exit, t2);
+        return entry <= exit;
+      };
+      if (!clip(start.x, dx, minX, maxX, 'x') || !clip(start.y, dy, minY, maxY, 'y')) return null;
+      if (exit < 0 || entry > 1) return null;
+      return Math.max(0, Math.min(1, entry));
+    }
+
+    function segmentVsExpandedCircle(start, end, center, radius) {
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      const fx = start.x - center.x;
+      const fy = start.y - center.y;
+      const rr = radius * radius;
+      if (fx * fx + fy * fy <= rr) return 0;
+      const a = dx * dx + dy * dy;
+      if (a < 1e-12) return null;
+      const b = 2 * (fx * dx + fy * dy);
+      const c = fx * fx + fy * fy - rr;
+      const discriminant = b * b - 4 * a * c;
+      if (discriminant < 0) return null;
+      const root = Math.sqrt(discriminant);
+      const t1 = (-b - root) / (2 * a);
+      const t2 = (-b + root) / (2 * a);
+      if (t1 >= 0 && t1 <= 1) return t1;
+      if (t2 >= 0 && t2 <= 1) return t2;
+      return null;
+    }
+
+    function findEarliestImpact(previous, next, scenario) {
+      if (!previous || !next || !scenario) return null;
+      const radius = Math.max(0, Number(scenario.radius ?? scenario.projectileRadius) || 0);
+      const impacts = [];
+      const targetSupportLandingZone = (building, point) => {
+        if (!scenario.target || building.id !== scenario.target.supportBuildingId) return false;
+        const targetBand = (Number(scenario.target.radius) || 0) + radius + 1e-6;
+        const descending = (next.y - previous.y) < -1e-9;
+        return descending
+          && Math.abs(point.x - scenario.target.x) <= targetBand
+          && Math.abs(point.y - scenario.target.y) <= targetBand;
+      };
+      (scenario.buildings || []).forEach(building => {
+        const t = segmentVsExpandedAabb(previous, next, building, radius);
+        // A rooftop support is allowed to release the projectile at t=0.
+        if (t === null || (t <= 1e-9 && building.id === scenario.launch?.supportBuildingId
+          && next.y > previous.y)) return;
+        const point = {
+          x: previous.x + (next.x - previous.x) * t,
+          y: previous.y + (next.y - previous.y) * t,
+        };
+        // The support roof is part of the target landing zone.  Ignore only
+        // contact at the target's rooftop surface; approaches elsewhere still
+        // collide with the support building normally.
+        if (targetSupportLandingZone(building, point)) return;
+        const onRoof = point.y >= building.height + radius - 1e-6;
+        impacts.push({
+          type: 'building',
+          surface: onRoof ? 'roof' : 'facade',
+          point,
+          buildingId: building.id,
+          t,
+        });
+      });
+      if (scenario.target) {
+        const t = segmentVsExpandedCircle(
+          previous,
+          next,
+          scenario.target,
+          (Number(scenario.target.radius) || 0) + radius,
+        );
+        if (t !== null) {
+          impacts.push({
+            type: 'target',
+            surface: null,
+            point: {
+              x: previous.x + (next.x - previous.x) * t,
+              y: previous.y + (next.y - previous.y) * t,
+            },
+            buildingId: null,
+            t,
+          });
+        }
+      }
+      const groundY = Number.isFinite(scenario.groundY)
+        ? scenario.groundY
+        : Number.isFinite(scenario.ground?.y) ? scenario.ground.y : 0;
+      const groundContact = groundY + radius;
+      const dy = next.y - previous.y;
+      if (previous.y <= groundContact + 1e-9 && dy < 0) {
+        impacts.push({ type: 'ground', surface: null, point: { ...previous }, buildingId: null, t: 0 });
+      } else if (dy < 0 && previous.y > groundContact && next.y <= groundContact) {
+        const t = (groundContact - previous.y) / dy;
+        impacts.push({
+          type: 'ground', surface: null,
+          point: { x: previous.x + (next.x - previous.x) * t, y: groundContact },
+          buildingId: null, t,
+        });
+      }
+      if (!impacts.length) return null;
+      impacts.sort((a, b) => {
+        if (Math.abs(a.t - b.t) <= 1e-6 && a.type !== b.type) {
+          if (a.type === 'target') return -1;
+          if (b.type === 'target') return 1;
+        }
+        return a.t - b.t;
+      });
+      return impacts[0];
+    }
+
+    function createChallengeSeed() {
+      if (globalThis.crypto?.getRandomValues) {
+        return globalThis.crypto.getRandomValues(new Uint32Array(1))[0];
+      }
+      return (Date.now() ^ Math.floor(performance.now() * 1000)) >>> 0;
+    }
+
+    function nextChallengeSeed(currentSeed) {
+      return (currentSeed + 0x9E3779B9) >>> 0;
+    }
+
+    function publicChallenge(challenge) {
+      if (!challenge) return null;
+      const { hiddenSolution, ...visibleChallenge } = challenge;
+      return {
+        ...visibleChallenge,
+        launch: { ...challenge.launch },
+        target: { ...challenge.target },
+        buildings: challenge.buildings.map(building => ({ ...building })),
+      };
+    }
+
+    const state = {
+      speed: 30,
+      angle: 45,
+      gravity: 9.8,
+      phase: 'idle',
+      elapsed: 0,
+      mode: 'explore',
+      showVectors: true,
+      showFormulas: false,
+      challengeFeedback: null,
+      challenge: generateChallenge(createChallengeSeed()),
+      challengeAttemptCount: 0,
+      challengeImpact: null,
+    };
+
+    const canvas = document.querySelector('#sceneCanvas');
+    const sceneFallback = document.querySelector('#sceneFallback');
+    const sceneInstructions = document.querySelector('#sceneInstructions');
+    const simulationStatus = document.querySelector('#simulationStatus');
+    const speedInput = document.querySelector('#speedInput');
+    const angleInput = document.querySelector('#angleInput');
+    const gravityInput = document.querySelector('#gravityInput');
+    const speedOutput = document.querySelector('#speedOutput');
+    const angleOutput = document.querySelector('#angleOutput');
+    const gravityOutput = document.querySelector('#gravityOutput');
+    const flightTimeMetric = document.querySelector('#flightTimeMetric');
+    const rangeMetric = document.querySelector('#rangeMetric');
+    const heightMetric = document.querySelector('#heightMetric');
+    const velocityMetric = document.querySelector('#velocityMetric');
+    const trajectoryGraphFigure = document.querySelector('#trajectoryGraphFigure');
+    const trajectoryGraph = document.querySelector('#trajectoryGraph');
+    const graphPath = document.querySelector('#graphPath');
+    const learningPanel = document.querySelector('#learningPanel');
+    const vectorsToggle = document.querySelector('#vectorsToggle');
+    const formulasToggle = document.querySelector('#formulasToggle');
+    const launchButton = document.querySelector('#launchButton');
+    const resetButton = document.querySelector('#resetButton');
+    const newChallengeButton = document.querySelector('#newChallengeButton');
+    const gravityPresets = document.querySelectorAll('[data-gravity]');
+    const modeButtons = document.querySelectorAll('[data-mode]');
+
+    let updateTrajectoryGeometry = () => {};
+    let updateCannonVisual = () => {};
+    let updateProjectileVisual = () => {};
+    let resetProjectileVisual = () => {};
+    let setVectorsVisible = () => {};
+    let setTargetVisible = () => {};
+    let setTrajectoryVisible = () => {};
+    let setCityVisible = () => {};
+    let renderChallengeScene = () => {};
+    let positionChallengeActors = () => {};
+    let frameChallengeScenario = () => {};
+    let captureExploreCameraView = () => {};
+    let restoreExploreCameraView = () => {};
+    let readTrajectoryPointCount = () => 0;
+    let activeFlight = null;
+    let animationFrame = 0;
+    let lastChallengeFrameSignature = null;
+
+    function setStatus(message) {
+      simulationStatus.textContent = message;
+    }
+
+    function setFlightControlsDisabled(disabled) {
+      [speedInput, angleInput, gravityInput].forEach(input => {
+        input.disabled = disabled;
+      });
+      gravityPresets.forEach(button => {
+        button.disabled = disabled;
+      });
+    }
+
+    function restoreControlInputs() {
+      speedInput.value = String(state.speed);
+      angleInput.value = String(state.angle);
+      gravityInput.value = String(state.gravity);
+      updateOutputs();
+    }
+
+    function finishFlight(flight, impact = null) {
+      if (activeFlight !== flight || state.phase !== 'flying') return;
+      state.phase = 'landed';
+      state.elapsed = impact ? flight.metrics.timeOfFlight * impact.progress : flight.metrics.timeOfFlight;
+      if (impact) {
+        const launch = state.challenge.launch;
+        const vy = flight.metrics.vy - flight.gravity * state.elapsed;
+        updateProjectileVisual(
+          { x: impact.point.x - launch.x, y: impact.point.y - launch.y },
+          flight.metrics.vx,
+          vy,
+        );
+        state.challengeImpact = {
+          type: impact.type,
+          surface: impact.surface,
+          point: { ...impact.point },
+          buildingId: impact.buildingId,
+          t: impact.t,
+        };
+      } else {
+        updateProjectileVisual(
+          {
+            x: flight.metrics.range,
+            y: state.mode === 'challenge' ? -state.challenge.launch.y : 0,
+          },
+          flight.metrics.vx,
+          -flight.metrics.vy,
+        );
+      }
+      animationFrame = 0;
+      launchButton.disabled = false;
+      setFlightControlsDisabled(false);
+      setStatus(impact
+        ? impact.type === 'target'
+          ? 'Objetivo alcanzado'
+          : `Impacto en ${impact.surface === 'facade' ? 'la fachada' : impact.surface === 'roof' ? 'el techo' : 'el suelo'}`
+        : `Impacto a ${flight.metrics.range.toFixed(2)} m`);
+      if (state.mode === 'challenge') {
+        state.challengeFeedback = formatChallengeFeedback(
+          state.challengeImpact || {
+            type: 'ground',
+            point: { x: state.challenge.launch.x + flight.metrics.range, y: state.challenge.launch.y },
+          },
+          state.challenge,
+        );
+        renderLearningPanel();
+      }
+      activeFlight = null;
+    }
+
+    function animateFlight(now) {
+      const flight = activeFlight;
+      if (!flight || state.phase !== 'flying') return;
+      const progress = Math.min(1, (now - flight.startedAt) / flight.durationMs);
+      state.elapsed = flight.metrics.timeOfFlight * progress;
+      const position = state.mode === 'challenge'
+        ? {
+            x: flight.metrics.vx * state.elapsed,
+            y: flight.metrics.vy * state.elapsed
+              - 0.5 * flight.gravity * state.elapsed ** 2,
+          }
+        : positionAt(
+            state.elapsed,
+            flight.metrics.vx,
+            flight.metrics.vy,
+            flight.gravity,
+          );
+      const instantaneousVy = flight.metrics.vy - flight.gravity * state.elapsed;
+      if (state.mode === 'challenge') {
+        const launch = state.challenge.launch;
+        const previous = flight.previousPosition;
+        const next = { x: launch.x + position.x, y: launch.y + position.y };
+        const impact = findEarliestImpact(previous, next, {
+          ...state.challenge,
+          radius: 1.15,
+          groundY: 0,
+        });
+        if (impact) {
+          const exactProgress = flight.previousProgress
+            + (progress - flight.previousProgress) * impact.t;
+          finishFlight(flight, { ...impact, progress: exactProgress });
+          return;
+        }
+        flight.previousPosition = next;
+        flight.previousProgress = progress;
+      }
+      updateProjectileVisual(position, flight.metrics.vx, instantaneousVy);
+      if (progress >= 1) {
+        finishFlight(flight);
+        return;
+      }
+      animationFrame = window.requestAnimationFrame(animateFlight);
+    }
+
+    function launchProjectile() {
+      if (state.phase === 'flying') return;
+      state.challengeFeedback = null;
+      state.challengeImpact = null;
+      if (state.mode === 'challenge') state.challengeAttemptCount += 1;
+      renderLearningPanel();
+      const metrics = state.mode === 'challenge'
+        ? computeChallengeMetrics(
+            state.speed,
+            state.angle,
+            state.gravity,
+            state.challenge.launch.y,
+          )
+        : computeMetrics(state.speed, state.angle, state.gravity);
+      const startedAt = performance.now();
+      activeFlight = {
+        metrics,
+        gravity: state.gravity,
+        startedAt,
+        durationMs: window.matchMedia('(prefers-reduced-motion: reduce)').matches || !renderer
+          ? 300
+          : metrics.timeOfFlight * 1000,
+        previousPosition: { x: state.mode === 'challenge' ? state.challenge.launch.x : 0, y: state.mode === 'challenge' ? state.challenge.launch.y : 0 },
+        previousProgress: 0,
+      };
+      state.phase = 'flying';
+      state.elapsed = 0;
+      state.startedAt = startedAt;
+      launchButton.disabled = true;
+      setFlightControlsDisabled(true);
+      setStatus('Proyectil en vuelo');
+      updateProjectileVisual({ x: 0, y: 0 }, metrics.vx, metrics.vy);
+      animationFrame = window.requestAnimationFrame(animateFlight);
+    }
+
+    function resetProjectile() {
+      if (animationFrame) window.cancelAnimationFrame(animationFrame);
+      animationFrame = 0;
+      activeFlight = null;
+      state.phase = 'idle';
+      state.elapsed = 0;
+      delete state.startedAt;
+      state.challengeFeedback = null;
+      state.challengeImpact = null;
+      resetProjectileVisual();
+      launchButton.disabled = false;
+      setFlightControlsDisabled(false);
+      setStatus('Listo para experimentar');
+      renderLearningPanel();
+    }
+
+    function sampleTrajectory(metrics, gravity, segments = 80) {
+      const launch = state.mode === 'challenge'
+        ? {
+            x: state.challenge.launch.x,
+            y: state.challenge.launch.y + VISUAL_SURFACE_OFFSET,
+          }
+        : { x: 0, y: SCENE_LAUNCH_HEIGHT };
+      return Array.from({ length: segments + 1 }, (_, index) => {
+        const time = metrics.timeOfFlight * index / segments;
+        const position = positionAt(time, metrics.vx, metrics.vy, gravity);
+        return new THREE.Vector3(position.x + launch.x, position.y + launch.y, 0);
+      });
+    }
+
+    function updateOutputs() {
+      speedOutput.value = `${state.speed} m/s`;
+      angleOutput.value = `${state.angle}°`;
+      gravityOutput.value = `${state.gravity.toFixed(1)} m/s²`;
+    }
+
+    function updateMetrics(metrics) {
+      flightTimeMetric.textContent = `${metrics.timeOfFlight.toFixed(2)} s`;
+      rangeMetric.textContent = `${metrics.range.toFixed(2)} m`;
+      heightMetric.textContent = `${metrics.maxHeight.toFixed(2)} m`;
+      velocityMetric.textContent = `${metrics.vx.toFixed(2)} / ${metrics.vy.toFixed(2)} m/s`;
+    }
+
+    function drawTrajectoryGraph(points, metrics) {
+      const width = 600;
+      const height = 220;
+      const padding = 28;
+      // Keep a stable teaching scale so changing controls changes the visible
+      // curve's height/extent instead of normalizing every shot to the same arc.
+      const maxX = Math.max(240, metrics.range * 1.05, 1);
+      const maxY = Math.max(120, metrics.maxHeight * 1.15, 1);
+      const commands = points.map((point, index) => {
+        const relativeHeight = Math.max(0, point.y - SCENE_LAUNCH_HEIGHT);
+        const x = padding + (point.x / maxX) * (width - 2 * padding);
+        const y = height - padding - (relativeHeight / maxY) * (height - 2 * padding);
+        return `${index === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`;
+      });
+      graphPath.setAttribute('d', commands.join(' '));
+    }
+
+    const formatNumber = value => Number(value).toFixed(2);
+
+    function understandingMarkup(metrics) {
+      return `
+        <div class="formula-explanation">
+          <h2>De la ecuación a la trayectoria</h2>
+          <p>vₓ = v₀ · cos(θ) = <strong>${formatNumber(metrics.vx)} m/s</strong></p>
+          <p>vᵧ = v₀ · sin(θ) = <strong>${formatNumber(metrics.vy)} m/s</strong></p>
+          <p>Tiempo de vuelo = 2vᵧ / g = <strong>${formatNumber(metrics.timeOfFlight)} s</strong></p>
+          <p>Altura máxima = vᵧ² / (2g) = <strong>${formatNumber(metrics.maxHeight)} m</strong></p>
+          <p>Alcance = vₓ · t = <strong>${formatNumber(metrics.range)} m</strong></p>
+        </div>`;
+    }
+
+    function formatChallengeFeedback(impact, challenge = state.challenge) {
+      const target = challenge?.target || { x: 0, y: 0, radius: 2.5 };
+      const point = impact?.point || { x: 0, y: 0 };
+      const horizontalDelta = point.x - target.x;
+      const verticalDelta = point.y - target.y;
+      const horizontalError = Math.abs(horizontalDelta);
+      const verticalError = Math.abs(verticalDelta);
+      if (impact?.type === 'target') {
+        if (verticalError > Math.max(target.radius || 0, 1.5)) {
+          const direction = verticalDelta > 0 ? 'por encima' : 'por debajo';
+          return `Error de altura: el proyectil quedó ${formatNumber(verticalError)} m ${direction} del objetivo. Ajusta el ángulo para corregir el desnivel.`;
+        }
+        return '¡Objetivo alcanzado! La distancia y la altura coinciden con el objetivo.';
+      }
+      if (impact?.type === 'building' && impact.surface === 'facade') {
+        return 'Impacto en la fachada. El proyectil encontró un edificio antes de completar el recorrido; prueba una trayectoria más alta.';
+      }
+      if (impact?.type === 'building' && impact.surface === 'roof') {
+        return 'Impacto en el techo. El proyectil pasó por encima del edificio, pero descendió sobre la azotea; ajusta el ángulo.';
+      }
+      if (horizontalError <= Math.max(target.radius || 0, 2.5) * 2 && verticalError > Math.max(target.radius || 0, 1.5)) {
+        const direction = verticalDelta > 0 ? 'por encima' : 'por debajo';
+        return `Error de altura: el proyectil llegó a la distancia prevista, pero quedó ${formatNumber(verticalError)} m ${direction} del objetivo.`;
+      }
+      if (horizontalDelta < 0) {
+        return `Tiro corto: faltaron ${formatNumber(horizontalError)} m para alcanzar el objetivo. Ajusta la velocidad o el ángulo.`;
+      }
+      return `Tiro largo: el alcance excedió el objetivo por ${formatNumber(horizontalError)} m. Reduce el alcance con un ajuste gradual.`;
+    }
+
+    function renderLearningPanel() {
+      const metrics = window.ProjectileLab?.lastMetrics
+        || computeMetrics(state.speed, state.angle, state.gravity);
+      const formulas = understandingMarkup(metrics);
+      if (state.mode === 'understand') {
+        learningPanel.innerHTML = formulas;
+        return;
+      }
+      if (state.mode === 'challenge') {
+        const challenge = state.challenge;
+        const distance = Math.abs(challenge.target.x - challenge.launch.x);
+        const heightDelta = challenge.target.y - challenge.launch.y;
+        const shortSeed = challenge.seed.toString(16).padStart(8, '0').slice(-6).toUpperCase();
+        const feedback = state.challengeFeedback
+          ? `<p class="challenge-feedback" role="status">${state.challengeFeedback}</p>`
+          : '';
+        learningPanel.innerHTML = `
+          <div class="challenge-instructions">
+            <h2>Desafío urbano</h2>
+            <p>Alcanza el objetivo entre los edificios. La trayectoria y sus vectores permanecen ocultos.</p>
+            <p>Ajusta la velocidad, el ángulo y la gravedad; luego lanza el proyectil.</p>
+            <dl class="challenge-metadata" aria-label="Datos del desafío">
+              <div><dt>Semilla</dt><dd data-challenge-seed>${shortSeed}</dd></div>
+              <div><dt>Intentos</dt><dd data-challenge-attempts>${state.challengeAttemptCount}</dd></div>
+              <div><dt>Distancia</dt><dd data-challenge-distance>${distance.toFixed(1)} m</dd></div>
+              <div><dt>Desnivel</dt><dd data-challenge-height-delta>${heightDelta.toFixed(1)} m</dd></div>
+            </dl>
+            ${feedback}
+          </div>
+        `;
+        return;
+      }
+      learningPanel.innerHTML = state.showFormulas ? formulas : '';
+    }
+
+    function setMode(mode) {
+      if (!['explore', 'understand', 'challenge'].includes(mode)) return;
+      const previousMode = state.mode;
+      if (previousMode !== 'challenge' && mode === 'challenge') captureExploreCameraView();
+      state.mode = mode;
+      state.challengeFeedback = null;
+      modeButtons.forEach(button => {
+        const active = button.dataset.mode === mode;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-pressed', String(active));
+        button.setAttribute('aria-selected', String(active));
+      });
+      newChallengeButton.hidden = mode !== 'challenge';
+      positionChallengeActors();
+      if (mode === 'challenge') frameChallengeScenario(state.challenge, true);
+      else if (previousMode === 'challenge') restoreExploreCameraView();
+      updateSimulationPreview();
+      if (state.phase !== 'flying') resetProjectileVisual();
+      applyModeVisibility();
+    }
+
+    function applyModeVisibility() {
+      const isChallenge = state.mode === 'challenge';
+      setTrajectoryVisible(!isChallenge);
+      setVectorsVisible(!isChallenge && state.showVectors);
+      setTargetVisible(isChallenge);
+      setCityVisible(isChallenge);
+      trajectoryGraphFigure.hidden = isChallenge;
+      trajectoryGraph.setAttribute('aria-hidden', String(isChallenge));
+    }
+
+    function createNewChallenge() {
+      if (state.phase === 'flying') resetProjectile();
+      state.challenge = generateChallenge(nextChallengeSeed(state.challenge.seed));
+      state.challengeAttemptCount = 0;
+      state.challengeFeedback = null;
+      renderChallengeScene(state.challenge);
+      positionChallengeActors();
+      frameChallengeScenario(state.challenge);
+      updateSimulationPreview();
+      resetProjectileVisual();
+      applyModeVisibility();
+    }
+
+    function loadChallengeForTest(challenge) {
+      if (!challenge || !validateChallenge(challenge)) {
+        throw new TypeError('Invalid challenge fixture');
+      }
+      if (state.phase === 'flying') resetProjectile();
+      state.challenge = challenge;
+      state.challengeAttemptCount = 0;
+      state.challengeFeedback = null;
+      state.challengeImpact = null;
+      renderChallengeScene(state.challenge);
+      positionChallengeActors();
+      if (state.mode === 'challenge') frameChallengeScenario(state.challenge);
+      updateSimulationPreview();
+      resetProjectileVisual();
+      applyModeVisibility();
+    }
+
+    function syncGravityPresets() {
+      gravityPresets.forEach(button => {
+        const isActive = Number(button.dataset.gravity) === state.gravity;
+        button.setAttribute('aria-pressed', String(isActive));
+      });
+    }
+
+    function updateSimulationPreview() {
+      const metrics = computeMetrics(state.speed, state.angle, state.gravity);
+      const points = sampleTrajectory(metrics, state.gravity);
+      updateTrajectoryGeometry(points);
+      updateCannonVisual(state.angle);
+      updateOutputs();
+      updateMetrics(metrics);
+      drawTrajectoryGraph(points, metrics);
+      syncGravityPresets();
+      window.ProjectileLab.lastMetrics = metrics;
+      state.challengeFeedback = null;
+      renderLearningPanel();
+    }
+
+    window.ProjectileLab = {
+      ready: false,
+      webglAvailable: false,
+      computeMetrics,
+      positionAt,
+      getState: () => ({ ...state, challenge: publicChallenge(state.challenge) }),
+      getTrajectoryPointCount: () => readTrajectoryPointCount(),
+      inspectScene: () => ({
+        renderer: false,
+        cannon: false,
+        projectile: false,
+        trajectory: false,
+        targetVisible: false,
+      }),
+    };
+    if (globalThis.__PROJECTILE_LAB_TEST__) {
+      Object.assign(window.ProjectileLab, {
+        generateChallenge,
+        validateChallenge,
+        segmentVsExpandedAabb,
+        findEarliestImpact,
+        formatChallengeFeedback,
+        loadChallengeForTest,
+      });
+    }
+
+    let context;
+    let renderer;
+    try {
+      const contextAttributes = { antialias: true, alpha: true };
+      context = canvas.getContext('webgl2', contextAttributes)
+        || canvas.getContext('webgl', contextAttributes);
+      if (!context) throw new Error('WebGL is unavailable');
+      renderer = new THREE.WebGLRenderer({ canvas, context, antialias: true, alpha: true });
+    } catch (error) {
+      canvas.hidden = true;
+      sceneFallback.hidden = false;
+      sceneInstructions.hidden = true;
+      simulationStatus.textContent = 'Vista 3D no disponible · Continúa con las métricas y fórmulas';
+    }
+
+    if (renderer) {
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x07101f, 0.00035);
+
+    const camera = new THREE.PerspectiveCamera(45, 1, 0.1, CAMERA_FAR);
+    camera.position.set(72, 48, 92);
+
+    const controls = new OrbitControls(camera, canvas);
+    controls.target.set(35, 12, 0);
+    controls.enableDamping = true;
+    controls.maxDistance = CONTROLS_MAX_DISTANCE;
+    controls.listenToKeyEvents(canvas);
+
+    let exploreCameraView = null;
+    captureExploreCameraView = () => {
+      exploreCameraView = {
+        position: camera.position.clone(),
+        target: controls.target.clone(),
+      };
+    };
+    restoreExploreCameraView = () => {
+      if (!exploreCameraView) return;
+      camera.position.copy(exploreCameraView.position);
+      controls.target.copy(exploreCameraView.target);
+      camera.updateMatrixWorld();
+      controls.update();
+    };
+    frameChallengeScenario = (challenge, force = false) => {
+      if (!challenge) return;
+      const frameSignature = `${challenge.seed}:${canvas.clientWidth}x${canvas.clientHeight}`;
+      if (!force && frameSignature === lastChallengeFrameSignature) return;
+      lastChallengeFrameSignature = frameSignature;
+      const actorPadding = 6;
+      const xValues = [
+        challenge.launch.x - actorPadding,
+        challenge.launch.x + actorPadding,
+        challenge.target.x - actorPadding,
+        challenge.target.x + actorPadding,
+      ];
+      const yValues = [
+        0,
+        challenge.launch.y + VISUAL_SURFACE_OFFSET + actorPadding,
+        challenge.target.y + VISUAL_SURFACE_OFFSET + actorPadding,
+      ];
+      let maximumDepth = 12;
+      challenge.buildings.forEach((building, index) => {
+        xValues.push(building.x, building.x + building.width);
+        yValues.push(building.height + 0.5);
+        maximumDepth = Math.max(maximumDepth, 10 + ((challenge.seed + index * 5) % 7));
+      });
+      const minimumX = Math.min(...xValues);
+      const maximumX = Math.max(...xValues);
+      const minimumY = Math.min(...yValues);
+      const maximumY = Math.max(...yValues);
+      const width = maximumX - minimumX;
+      const height = maximumY - minimumY;
+      const padding = Math.max(8, Math.max(width, height) * 0.1);
+      const halfWidth = width / 2 + padding;
+      const halfHeight = height / 2 + padding;
+      const centerX = (minimumX + maximumX) / 2;
+      const centerY = (minimumY + maximumY) / 2;
+      const aspect = canvas.clientWidth / Math.max(canvas.clientHeight, 1);
+      const verticalFov = toRadians(camera.fov);
+      const horizontalFov = 2 * Math.atan(Math.tan(verticalFov / 2) * aspect);
+      const distance = Math.max(
+        halfWidth / Math.tan(horizontalFov / 2),
+        halfHeight / Math.tan(verticalFov / 2),
+      ) + maximumDepth / 2 + 2;
+
+      camera.aspect = aspect;
+      camera.position.set(centerX, centerY, distance);
+      controls.target.set(centerX, centerY, 0);
+      camera.updateProjectionMatrix();
+      camera.updateMatrixWorld();
+      controls.update();
+    };
+
+    scene.add(new THREE.HemisphereLight(0x8edcff, 0x10131b, 2.1));
+    const keyLight = new THREE.DirectionalLight(0xffffff, 3.2);
+    keyLight.position.set(30, 60, 30);
+    scene.add(keyLight);
+
+    function createGround() {
+      const ground = new THREE.Group();
+      ground.name = 'ground';
+
+      const plane = new THREE.Mesh(
+        new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE),
+        new THREE.MeshStandardMaterial({ color: 0x0b1727, roughness: 0.94, metalness: 0.08 }),
+      );
+      plane.rotation.x = -Math.PI / 2;
+      plane.position.set(GROUND_CENTER_X, -0.02, 0);
+      plane.name = 'ground-plane';
+
+      const grid = new THREE.GridHelper(GROUND_SIZE, 52, 0x37e6ff, 0x203451);
+      grid.position.x = GROUND_CENTER_X;
+      grid.name = 'ground-grid';
+      ground.add(plane, grid);
+      return ground;
+    }
+
+    function createProjectile() {
+      const projectile = new THREE.Mesh(
+        new THREE.SphereGeometry(1.15, 32, 20),
+        new THREE.MeshStandardMaterial({
+          color: 0xff9f43,
+          emissive: 0x5a2100,
+          emissiveIntensity: 1.2,
+        }),
+      );
+      projectile.name = 'projectile';
+      projectile.position.set(0, SCENE_LAUNCH_HEIGHT, 0);
+      return projectile;
+    }
+
+    function createCannon() {
+      const cannon = new THREE.Group();
+      cannon.name = 'cannon';
+
+      const material = new THREE.MeshStandardMaterial({
+        color: 0x263957,
+        metalness: 0.7,
+        roughness: 0.28,
+      });
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(4.2, 5, 2.4, 32), material);
+      base.position.y = 1.2;
+
+      const barrel = new THREE.Mesh(
+        new THREE.CylinderGeometry(1.25, 1.65, 11, 24),
+        new THREE.MeshStandardMaterial({ color: 0x6b7f9f, metalness: 0.85, roughness: 0.2 }),
+      );
+      barrel.rotation.z = -Math.PI / 2;
+      barrel.position.set(5, 3.4, 0);
+      barrel.name = 'barrel';
+      cannon.add(base, barrel);
+      return cannon;
+    }
+
+    function createTarget() {
+      const target = new THREE.Mesh(
+        new THREE.TorusGeometry(4.5, 0.45, 16, 48),
+        new THREE.MeshStandardMaterial({ color: 0x37e6ff, emissive: 0x073d49 }),
+      );
+      target.name = 'target';
+      target.rotation.x = Math.PI / 2;
+      target.position.set(70, 0.48, 0);
+      return target;
+    }
+
+    const buildingGeometry = new THREE.BoxGeometry(1, 1, 1);
+    const rooftopGeometry = new THREE.BoxGeometry(1, 1, 1);
+    const windowGeometry = new THREE.PlaneGeometry(1, 1);
+    const rooftopMaterial = new THREE.MeshStandardMaterial({
+      color: 0x26364c,
+      roughness: 0.78,
+      metalness: 0.18,
+    });
+    const windowMaterial = new THREE.MeshStandardMaterial({
+      color: 0x9cefff,
+      emissive: 0x1d6675,
+      emissiveIntensity: 0.7,
+      roughness: 0.32,
+    });
+    const challengeGroup = new THREE.Group();
+    challengeGroup.name = 'challenge-city';
+    let disposedChallengeMaterials = 0;
+
+    function clearChallengeGroup() {
+      challengeGroup.traverse(object => {
+        if (!object.isMesh) return;
+        const materials = Array.isArray(object.material) ? object.material : [object.material];
+        materials.forEach(material => {
+          if (!material?.userData.challengeDisposable) return;
+          material.dispose();
+          disposedChallengeMaterials += 1;
+        });
+      });
+      challengeGroup.clear();
+    }
+
+    function createBuildingVisual(building, index, seed) {
+      const buildingGroup = new THREE.Group();
+      buildingGroup.name = `challenge-building-${building.id}`;
+      buildingGroup.userData.building = { ...building };
+      const depth = 10 + ((seed + index * 5) % 7);
+      const palette = [0x40516d, 0x51465f, 0x365768, 0x5b5046, 0x344b55];
+      const color = palette[(seed + index) % palette.length];
+      const buildingMaterial = new THREE.MeshStandardMaterial({
+        color,
+        roughness: 0.76,
+        metalness: 0.16,
+      });
+      buildingMaterial.userData.challengeDisposable = true;
+
+      const body = new THREE.Mesh(buildingGeometry, buildingMaterial);
+      body.name = 'challenge-building-body';
+      body.scale.set(building.width, building.height, depth);
+      body.position.set(building.x + building.width / 2, building.height / 2, 0);
+      body.userData.buildingId = building.id;
+
+      const rooftop = new THREE.Mesh(rooftopGeometry, rooftopMaterial);
+      rooftop.name = 'challenge-rooftop';
+      rooftop.scale.set(building.width + 0.6, 0.45, depth + 0.6);
+      rooftop.position.set(building.x + building.width / 2, building.height + 0.22, 0);
+
+      const columns = Math.max(2, Math.min(5, Math.floor(building.width / 2.7)));
+      const rows = Math.max(2, Math.min(6, Math.floor(building.height / 4.5)));
+      for (let row = 0; row < rows; row += 1) {
+        for (let column = 0; column < columns; column += 1) {
+          const windowMesh = new THREE.Mesh(windowGeometry, windowMaterial);
+          windowMesh.name = 'challenge-window';
+          windowMesh.scale.set(1.15, 1.45, 1);
+          windowMesh.position.set(
+            building.x + building.width * (column + 1) / (columns + 1),
+            building.height * (row + 1) / (rows + 1),
+            depth / 2 + 0.011,
+          );
+          buildingGroup.add(windowMesh);
+        }
+      }
+      buildingGroup.userData.layout = {
+        id: building.id,
+        x: building.x,
+        width: building.width,
+        height: building.height,
+        depth,
+        color,
+      };
+      buildingGroup.add(body, rooftop);
+      return buildingGroup;
+    }
+
+    function createTrajectory() {
+      const geometry = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, SCENE_LAUNCH_HEIGHT, 0),
+        new THREE.Vector3(1, SCENE_LAUNCH_HEIGHT, 0),
+      ]);
+      const trajectory = new THREE.Line(
+        geometry,
+        new THREE.LineBasicMaterial({ color: 0xffb45f }),
+      );
+      trajectory.name = 'trajectory';
+      return trajectory;
+    }
+
+    const cannon = createCannon();
+    const projectile = createProjectile();
+    const trajectory = createTrajectory();
+    const horizontalVector = new THREE.ArrowHelper(
+      new THREE.Vector3(1, 0, 0),
+      projectile.position.clone(),
+      state.speed * Math.cos(toRadians(state.angle)),
+      0x37e6ff,
+    );
+    horizontalVector.name = 'horizontal-velocity-vector';
+    const verticalVector = new THREE.ArrowHelper(
+      new THREE.Vector3(0, 1, 0),
+      projectile.position.clone(),
+      state.speed * Math.sin(toRadians(state.angle)),
+      0xff9f43,
+    );
+    verticalVector.name = 'vertical-velocity-vector';
+    const target = createTarget();
+    target.visible = state.mode === 'challenge';
+    scene.add(
+      createGround(), challengeGroup, cannon, projectile, target, trajectory,
+      horizontalVector, verticalVector,
+    );
+    setTargetVisible = visible => {
+      target.visible = visible;
+    };
+    setTrajectoryVisible = visible => {
+      trajectory.visible = visible;
+    };
+    setCityVisible = visible => {
+      challengeGroup.visible = visible;
+    };
+    renderChallengeScene = challenge => {
+      clearChallengeGroup();
+      challenge.buildings.forEach((building, index) => {
+        challengeGroup.add(createBuildingVisual(building, index, challenge.seed));
+      });
+    };
+    positionChallengeActors = () => {
+      if (state.mode === 'challenge') {
+        cannon.position.set(
+          state.challenge.launch.x,
+          state.challenge.launch.y + VISUAL_SURFACE_OFFSET,
+          0,
+        );
+        target.position.set(
+          state.challenge.target.x,
+          state.challenge.target.y + VISUAL_SURFACE_OFFSET,
+          0,
+        );
+        return;
+      }
+      cannon.position.set(0, 0, 0);
+      target.position.set(EXPLORE_TARGET_X, 0.48, 0);
+    };
+
+    updateTrajectoryGeometry = points => {
+      trajectory.geometry.dispose();
+      trajectory.geometry = new THREE.BufferGeometry().setFromPoints(points);
+    };
+    updateCannonVisual = angleDegrees => {
+      const barrel = cannon.getObjectByName('barrel');
+      const angle = toRadians(angleDegrees);
+      barrel.rotation.z = angle - Math.PI / 2;
+      barrel.position.set(
+        5.5 * Math.cos(angle),
+        SCENE_LAUNCH_HEIGHT + 5.5 * Math.sin(angle),
+        0,
+      );
+    };
+    readTrajectoryPointCount = () => (
+      trajectory.geometry.getAttribute('position')?.count || 0
+    );
+    updateProjectileVisual = (groundPosition, horizontalVelocity, verticalVelocity) => {
+      const launch = state.mode === 'challenge'
+        ? {
+            x: state.challenge.launch.x,
+            y: state.challenge.launch.y + VISUAL_SURFACE_OFFSET,
+          }
+        : { x: 0, y: SCENE_LAUNCH_HEIGHT };
+      projectile.position.set(
+        groundPosition.x + launch.x,
+        groundPosition.y + launch.y,
+        0,
+      );
+      horizontalVector.position.copy(projectile.position);
+      horizontalVector.setDirection(new THREE.Vector3(1, 0, 0));
+      horizontalVector.setLength(Math.max(Math.abs(horizontalVelocity), 0.001));
+      verticalVector.position.copy(projectile.position);
+      verticalVector.setDirection(new THREE.Vector3(0, verticalVelocity < 0 ? -1 : 1, 0));
+      verticalVector.setLength(Math.max(Math.abs(verticalVelocity), 0.001));
+    };
+    resetProjectileVisual = () => {
+      const metrics = computeMetrics(state.speed, state.angle, state.gravity);
+      updateProjectileVisual({ x: 0, y: 0 }, metrics.vx, metrics.vy);
+    };
+    setVectorsVisible = visible => {
+      horizontalVector.visible = visible;
+      verticalVector.visible = visible;
+    };
+
+    let renderedFrames = 0;
+    Object.assign(window.ProjectileLab, {
+      webglAvailable: true,
+      inspectScene: () => {
+        const positions = trajectory.geometry.getAttribute('position');
+        const lastIndex = Math.max(positions.count - 1, 0);
+        const trajectoryStart = [positions.getX(0), positions.getY(0), positions.getZ(0)];
+        const trajectoryEnd = [
+          positions.getX(lastIndex),
+          positions.getY(lastIndex),
+          positions.getZ(lastIndex),
+        ];
+        const endpoint = new THREE.Vector3(...trajectoryEnd);
+        camera.updateMatrixWorld();
+        const targetNdc = target.position.clone().project(camera).toArray();
+        const buildingGroups = challengeGroup.children.filter(
+          child => child.name.startsWith('challenge-building-'),
+        );
+        const challengeMeshes = [];
+        challengeGroup.traverse(object => {
+          if (object.isMesh) challengeMeshes.push(object);
+        });
+        return {
+        renderer: renderer instanceof THREE.WebGLRenderer,
+        context: renderer.getContext() === context,
+        cannon: Boolean(scene.getObjectByName('cannon')),
+        projectile: Boolean(scene.getObjectByName('projectile')),
+        trajectory: Boolean(scene.getObjectByName('trajectory')),
+        trajectoryVisible: trajectory.visible,
+        targetVisible: target.visible,
+        cityVisible: challengeGroup.visible,
+        buildingMeshCount: challengeMeshes.filter(mesh => mesh.name === 'challenge-building-body').length,
+        rooftopMeshCount: challengeMeshes.filter(mesh => mesh.name === 'challenge-rooftop').length,
+        windowMeshCount: challengeMeshes.filter(mesh => mesh.name === 'challenge-window').length,
+        buildingLayout: buildingGroups.map(group => ({ ...group.userData.layout })),
+        challengeGeometryIds: [
+          buildingGeometry.uuid,
+          rooftopGeometry.uuid,
+          windowGeometry.uuid,
+        ],
+        challengeMaterialIds: challengeMeshes
+          .filter(mesh => mesh.material?.userData.challengeDisposable)
+          .map(mesh => mesh.material.uuid),
+        disposedChallengeMaterials,
+        visualSurfaceOffset: VISUAL_SURFACE_OFFSET,
+        challengeCoordinates: {
+          physics: {
+            launch: [state.challenge.launch.x, state.challenge.launch.y, 0],
+            target: [state.challenge.target.x, state.challenge.target.y, 0],
+          },
+          visual: {
+            cannon: cannon.position.toArray(),
+            projectile: projectile.position.toArray(),
+            target: target.position.toArray(),
+          },
+        },
+        cannonPosition: cannon.position.toArray(),
+        targetPosition: target.position.toArray(),
+        targetNdc,
+        cameraPosition: camera.position.toArray(),
+        cameraTarget: controls.target.toArray(),
+        cameraDistanceToTarget: camera.position.distanceTo(controls.target),
+        cameraAspect: camera.aspect,
+        cameraFar: camera.far,
+        controlsMaxDistance: controls.maxDistance,
+        endpointDistanceFromCamera: camera.position.distanceTo(endpoint),
+        launchHeight: state.mode === 'challenge'
+          ? state.challenge.launch.y
+          : SCENE_LAUNCH_HEIGHT,
+        projectilePosition: projectile.position.toArray(),
+        horizontalVector: {
+          visible: horizontalVector.visible,
+          origin: horizontalVector.position.toArray(),
+          direction: new THREE.Vector3(0, 1, 0)
+            .applyQuaternion(horizontalVector.quaternion).toArray(),
+        },
+        verticalVector: {
+          visible: verticalVector.visible,
+          origin: verticalVector.position.toArray(),
+          direction: new THREE.Vector3(0, 1, 0)
+            .applyQuaternion(verticalVector.quaternion).toArray(),
+        },
+        trajectoryStart,
+        trajectoryEnd,
+        groundBounds: {
+          minX: GROUND_CENTER_X - GROUND_SIZE / 2,
+          maxX: GROUND_CENTER_X + GROUND_SIZE / 2,
+        },
+        clientWidth: canvas.clientWidth,
+        clientHeight: canvas.clientHeight,
+        drawingWidth: canvas.width,
+        drawingHeight: canvas.height,
+        renderedFrames,
+        };
+      },
+    });
+
+    function renderFrame() {
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      const pixelRatio = renderer.getPixelRatio();
+      const drawingWidth = Math.floor(width * pixelRatio);
+      const drawingHeight = Math.floor(height * pixelRatio);
+      const nextAspect = width / Math.max(height, 1);
+      const dimensionsChanged = canvas.width !== drawingWidth || canvas.height !== drawingHeight;
+      const aspectChanged = Math.abs(camera.aspect - nextAspect) > 1e-7;
+      if (dimensionsChanged || aspectChanged) {
+        if (dimensionsChanged) renderer.setSize(width, height, false);
+        camera.aspect = nextAspect;
+        camera.updateProjectionMatrix();
+        if (state.mode === 'challenge') frameChallengeScenario(state.challenge);
+      }
+      controls.update();
+      renderer.render(scene, camera);
+      renderedFrames += 1;
+      window.requestAnimationFrame(renderFrame);
+    }
+
+    renderFrame();
+    }
+
+    [speedInput, angleInput, gravityInput].forEach(input => {
+      input.addEventListener('input', () => {
+        if (state.phase === 'flying') {
+          restoreControlInputs();
+          return;
+        }
+        state.speed = Number(speedInput.value);
+        state.angle = Number(angleInput.value);
+        state.gravity = Number(gravityInput.value);
+        updateSimulationPreview();
+      });
+    });
+
+    gravityPresets.forEach(button => {
+      button.addEventListener('click', () => {
+        if (state.phase === 'flying') return;
+        state.gravity = Number(button.dataset.gravity);
+        gravityInput.value = String(state.gravity);
+        updateSimulationPreview();
+      });
+    });
+
+    vectorsToggle.addEventListener('change', () => {
+      state.showVectors = vectorsToggle.checked;
+      applyModeVisibility();
+    });
+    formulasToggle.addEventListener('change', () => {
+      state.showFormulas = formulasToggle.checked;
+      renderLearningPanel();
+    });
+    modeButtons.forEach(button => {
+      button.addEventListener('click', () => setMode(button.dataset.mode));
+    });
+    launchButton.addEventListener('click', launchProjectile);
+    resetButton.addEventListener('click', resetProjectile);
+    newChallengeButton.addEventListener('click', createNewChallenge);
+
+    renderChallengeScene(state.challenge);
+    positionChallengeActors();
+    updateSimulationPreview();
+    resetProjectileVisual();
+    applyModeVisibility();
+    window.ProjectileLab.ready = true;
+  </script>
+</body>
+</html>

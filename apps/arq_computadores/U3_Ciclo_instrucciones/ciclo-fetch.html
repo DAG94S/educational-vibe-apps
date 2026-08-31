@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ciclo de Instrucciones: Fase FETCH — Arquitectura de Computadores</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-page:       #f8f9fa;
+      --bg-canvas:     #ffffff;
+      --bg-desc:       #eef2ff;
+      --border-canvas: #e2e8f0;
+      --border-desc:   #4f46e5;
+      --text-main:     #1a1a2e;
+      --text-desc:     #312e81;
+      --text-speed:    #64748b;
+      --legend-text:   #555;
+      --border-footer: #e0e0e0;
+      --text-footer:   #888;
+    }
+    body.dark {
+      --bg-page:       #0f172a;
+      --bg-canvas:     #1e293b;
+      --bg-desc:       #1e1b4b;
+      --border-canvas: #334155;
+      --border-desc:   #818cf8;
+      --text-main:     #e2e8f0;
+      --text-desc:     #c7d2fe;
+      --text-speed:    #94a3b8;
+      --legend-text:   #94a3b8;
+      --border-footer: #334155;
+      --text-footer:   #64748b;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg-page);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    header {
+      background: #1a1a2e;
+      color: #fff;
+      padding: 16px 24px;
+      text-align: center;
+      position: relative;
+    }
+    header h1 { font-size: 20px; font-weight: 600; }
+    header p  { font-size: 13px; color: #a0aec0; margin-top: 4px; }
+
+    #btn-dark {
+      position: absolute;
+      right: 16px; top: 50%;
+      transform: translateY(-50%);
+      padding: 6px 14px;
+      border: 1.5px solid #a0aec0;
+      border-radius: 20px;
+      background: transparent;
+      color: #fff;
+      font-size: 12px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.2s;
+    }
+    #btn-dark:hover { background: rgba(255,255,255,0.15); }
+
+    main {
+      flex: 1;
+      max-width: 900px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 24px 16px;
+    }
+
+    #canvas {
+      background: var(--bg-canvas);
+      border: 1px solid var(--border-canvas);
+      border-radius: 12px;
+      padding: 24px 16px;
+      position: relative;
+      overflow: hidden;
+      transition: background 0.3s, border-color 0.3s;
+    }
+    #canvas svg { width: 100%; height: auto; display: block; }
+
+    #step-description {
+      background: var(--bg-desc);
+      border-left: 4px solid var(--border-desc);
+      border-radius: 0 8px 8px 0;
+      padding: 12px 16px;
+      margin: 16px 0 8px;
+      font-size: 14px;
+      line-height: 1.6;
+      min-height: 56px;
+      color: var(--text-desc);
+      transition: background 0.3s, border-color 0.3s, color 0.3s;
+    }
+
+    #controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-top: 16px;
+    }
+    button {
+      padding: 8px 20px;
+      border: 1.5px solid #4f46e5;
+      border-radius: 8px;
+      background: #fff;
+      color: #4f46e5;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    button:hover  { background: #4f46e5; color: #fff; }
+    button:active { transform: scale(0.97); }
+    button.primary { background: #4f46e5; color: #fff; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    #speed-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--text-speed);
+      margin-top: 12px;
+      justify-content: center;
+    }
+    input[type=range] { width: 120px; }
+
+    .legend {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--legend-text);
+    }
+    .legend-item { display: flex; align-items: center; gap: 5px; }
+    .legend-dot  { width: 12px; height: 12px; border-radius: 3px; }
+
+    footer {
+      text-align: center;
+      padding: 18px 0 10px;
+      border-top: 1px solid var(--border-footer);
+      font-size: 12px;
+      color: var(--text-footer);
+      margin-top: auto;
+      transition: border-color 0.3s, color 0.3s;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Ciclo de Instrucciones — Fase FETCH</h1>
+  <p>Obtención de la instrucción desde la Memoria Principal</p>
+  <button id="btn-dark">🌙 Modo Oscuro</button>
+</header>
+
+<main>
+  <div id="canvas">
+    <svg viewBox="0 0 980 430" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe UI', system-ui, sans-serif">
+
+      <!-- FONDO CPU -->
+      <rect id="svg-cpu-bg" x="8" y="8" width="490" height="414" rx="16" fill="#f0f4ff" stroke="#c7d2fe" stroke-width="2"/>
+      <text x="253" y="30" text-anchor="middle" font-size="13" font-weight="700" fill="#3730a3">CPU</text>
+
+      <!-- FONDO RAM -->
+      <rect id="svg-ram-bg" x="720" y="8" width="252" height="414" rx="16" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="2"/>
+      <text x="846" y="30" text-anchor="middle" font-size="13" font-weight="700" fill="#166534">MEMORIA RAM</text>
+
+      <!-- REGISTROS -->
+      <g id="reg-pc">
+        <rect x="30" y="50" width="170" height="90" rx="10" fill="#ede9fe" stroke="#7c3aed" stroke-width="2.5"/>
+        <text x="115" y="72" text-anchor="middle" font-size="13" font-weight="700" fill="#5b21b6">PC</text>
+        <text x="115" y="88" text-anchor="middle" font-size="10" fill="#7c3aed">Program Counter</text>
+        <text id="pc-valor" x="115" y="125" text-anchor="middle" font-size="22" font-weight="800" fill="#3b0764" font-family="'Courier New'">0x0100</text>
+      </g>
+
+      <g id="reg-mar">
+        <rect x="270" y="50" width="210" height="90" rx="10" fill="#ede9fe" stroke="#7c3aed" stroke-width="2.5"/>
+        <text x="375" y="72" text-anchor="middle" font-size="13" font-weight="700" fill="#5b21b6">MAR</text>
+        <text x="375" y="88" text-anchor="middle" font-size="10" fill="#7c3aed">Memory Address Register</text>
+        <text id="mar-valor" x="375" y="125" text-anchor="middle" font-size="22" font-weight="800" fill="#3b0764" font-family="'Courier New'">—</text>
+      </g>
+
+      <g id="reg-ir">
+        <rect x="30" y="250" width="170" height="90" rx="10" fill="#ede9fe" stroke="#7c3aed" stroke-width="2.5"/>
+        <text x="115" y="272" text-anchor="middle" font-size="13" font-weight="700" fill="#5b21b6">IR</text>
+        <text x="115" y="288" text-anchor="middle" font-size="10" fill="#7c3aed">Instruction Register</text>
+        <text id="ir-valor" x="115" y="325" text-anchor="middle" font-size="17" font-weight="800" fill="#3b0764" font-family="'Courier New'">—</text>
+      </g>
+
+      <g id="reg-mdr">
+        <rect x="270" y="250" width="210" height="90" rx="10" fill="#ede9fe" stroke="#7c3aed" stroke-width="2.5"/>
+        <text x="375" y="272" text-anchor="middle" font-size="13" font-weight="700" fill="#5b21b6">MDR</text>
+        <text x="375" y="288" text-anchor="middle" font-size="10" fill="#7c3aed">Memory Data Register</text>
+        <text id="mdr-valor" x="375" y="325" text-anchor="middle" font-size="17" font-weight="800" fill="#3b0764" font-family="'Courier New'">—</text>
+      </g>
+
+      <!-- BUSES -->
+      <line x1="500" y1="95" x2="736" y2="95" stroke="#c7d2fe" stroke-width="4" stroke-dasharray="8,4"/>
+      <text x="618" y="84" text-anchor="middle" font-size="10" font-weight="600" fill="#6366f1">Bus de Direcciones</text>
+
+      <line x1="500" y1="295" x2="736" y2="295" stroke="#fed7aa" stroke-width="4" stroke-dasharray="8,4"/>
+      <text x="618" y="314" text-anchor="middle" font-size="10" font-weight="600" fill="#ea580c">Bus de Datos</text>
+
+      <!-- CELDAS RAM -->
+      <rect x="736" y="48" width="226" height="52" rx="8" fill="#dcfce7" stroke="#86efac" stroke-width="1.5"/>
+      <text x="849" y="67" text-anchor="middle" font-size="10" fill="#166534" font-weight="600">0x0100</text>
+      <text x="849" y="88" text-anchor="middle" font-size="13" font-weight="700" fill="#14532d" font-family="'Courier New'">LOAD R1, 0x200</text>
+
+      <rect id="ram-next-cell" x="736" y="108" width="226" height="52" rx="8" fill="#dcfce7" stroke="#86efac" stroke-width="1.5"/>
+      <text x="849" y="127" text-anchor="middle" font-size="10" fill="#166534" font-weight="600">0x0101</text>
+      <text x="849" y="148" text-anchor="middle" font-size="13" font-weight="700" fill="#14532d" font-family="'Courier New'">ADD R2, R1</text>
+
+      <rect x="736" y="168" width="226" height="46" rx="7" fill="#dcfce7" stroke="#86efac" stroke-width="1"/>
+      <text x="849" y="185" text-anchor="middle" font-size="10" fill="#166534">0x0102</text>
+      <text x="849" y="202" text-anchor="middle" font-size="12" fill="#14532d" font-family="'Courier New'">SUB R3, R2</text>
+
+      <!-- RESALTES -->
+      <rect id="ram-hl-0" x="736" y="48" width="226" height="52" rx="8" fill="#fbbf24" stroke="#d97706" stroke-width="2.5" opacity="0"/>
+      <rect id="ram-hl-1" x="736" y="108" width="226" height="52" rx="8" fill="#bbf7d0" stroke="#16a34a" stroke-width="3" opacity="0"/>
+
+      <defs>
+        <marker id="m1" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#7c3aed"/></marker>
+        <marker id="m2" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#4f46e5"/></marker>
+        <marker id="m3" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#ea580c"/></marker>
+      </defs>
+
+      <line id="f1" x1="200" y1="95" x2="200" y2="95" stroke="#7c3aed" stroke-width="3" marker-end="url(#m1)" opacity="0"/>
+      <line id="f2" x1="500" y1="95" x2="500" y2="95" stroke="#4f46e5" stroke-width="3" marker-end="url(#m2)" opacity="0"/>
+      <line id="f3" x1="736" y1="295" x2="736" y2="295" stroke="#ea580c" stroke-width="3" marker-end="url(#m3)" opacity="0"/>
+      <line id="f4" x1="270" y1="295" x2="270" y2="295" stroke="#7c3aed" stroke-width="3" marker-end="url(#m1)" opacity="0"/>
+    </svg>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#ede9fe;border:2px solid #7c3aed"></div> Registros CPU</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#4f46e5"></div> Bus Direcciones</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#ea580c"></div> Bus Datos</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#fbbf24;border:1px solid #d97706"></div> Celda activa</div>
+  </div>
+
+  <div id="step-description">Presiona <strong>Reproducir</strong> para comenzar el ciclo FETCH.</div>
+
+  <div id="controls">
+    <button id="btn-prev" disabled>← Anterior</button>
+    <button id="btn-play" class="primary">▶ Reproducir</button>
+    <button id="btn-pause" disabled>⏸ Pausar</button>
+    <button id="btn-next" disabled>Siguiente →</button>
+    <button id="btn-restart">↺ Reiniciar</button>
+  </div>
+
+  <div id="speed-wrap">
+    <span>Velocidad:</span>
+    <input type="range" id="speed" min="0.25" max="2" step="0.25" value="1">
+    <span id="speed-label">1×</span>
+  </div>
+</main>
+
+<footer>© Diego García — Arquitectura de Computadores</footer>
+
+<script>
+  const steps = [
+    { desc: "<strong>1. Dirección en PC:</strong> El Program Counter (PC) almacena 0x0100, la dirección de la próxima instrucción." },
+    { desc: "<strong>2. PC → MAR:</strong> La dirección se copia al Registro de Dirección de Memoria (MAR)." },
+    { desc: "<strong>3. MAR → Bus → RAM:</strong> La dirección viaja por el Bus de Direcciones hasta la Memoria." },
+    { desc: "<strong>4. RAM → MDR:</strong> La RAM envía la instrucción 'LOAD R1, 0x200' por el Bus de Datos al MDR." },
+    { desc: "<strong>5. MDR → IR:</strong> La instrucción se almacena en el Registro de Instrucción (IR), lista para DECODE." },
+    { desc: "<strong>6. PC ← PC + 1:</strong> El PC se incrementa a 0x0101, apuntando a la SIGUIENTE instrucción en memoria." }
+  ];
+
+  let currentStep = -1;
+  let masterTL = null;
+
+  const btnPlay = document.getElementById('btn-play');
+  const btnPause = document.getElementById('btn-pause');
+  const btnPrev = document.getElementById('btn-prev');
+  const btnNext = document.getElementById('btn-next');
+  const btnRestart = document.getElementById('btn-restart');
+  const btnDark = document.getElementById('btn-dark');
+  const descEl = document.getElementById('step-description');
+  const speedSlider = document.getElementById('speed');
+  const speedLabel = document.getElementById('speed-label');
+
+  // Dark Mode
+  btnDark.addEventListener('click', () => {
+    const isDark = document.body.classList.toggle('dark');
+    btnDark.textContent = isDark ? '☀️ Modo Claro' : '🌙 Modo Oscuro';
+    document.getElementById('svg-cpu-bg').setAttribute('fill', isDark ? '#1e1b4b' : '#f0f4ff');
+    document.getElementById('svg-cpu-bg').setAttribute('stroke', isDark ? '#4338ca' : '#c7d2fe');
+    document.getElementById('svg-ram-bg').setAttribute('fill', isDark ? '#052e16' : '#f0fdf4');
+    document.getElementById('svg-ram-bg').setAttribute('stroke', isDark ? '#166534' : '#bbf7d0');
+  });
+
+  function updateRegisters(step) {
+    // Resetear todos los valores
+    document.getElementById('pc-valor').textContent = '0x0100';
+    document.getElementById('mar-valor').textContent = '—';
+    document.getElementById('mdr-valor').textContent = '—';
+    document.getElementById('ir-valor').textContent = '—';
+
+    // Actualizar según el paso actual
+    if (step >= 1) document.getElementById('mar-valor').textContent = '0x0100';
+    if (step >= 3) document.getElementById('mdr-valor').textContent = 'LOAD R1';
+    if (step >= 4) document.getElementById('ir-valor').textContent = 'LOAD R1';
+    if (step >= 5) document.getElementById('pc-valor').textContent = '0x0101';
+  }
+
+  function setStep(i) {
+    currentStep = i;
+    if (steps[i]) descEl.innerHTML = steps[i].desc;
+    btnPrev.disabled = i <= 0;
+    btnNext.disabled = i >= steps.length - 1;
+    updateRegisters(i);
+  }
+
+  function resetAll() {
+    gsap.set(['#reg-pc rect', '#reg-mar rect', '#reg-mdr rect', '#reg-ir rect'],
+             { attr: { fill: '#ede9fe', stroke: '#7c3aed' } });
+    // IMPORTANTE: Resetear valores de registros
+    document.getElementById('pc-valor').textContent = '0x0100';
+    document.getElementById('mar-valor').textContent = '—';
+    document.getElementById('mdr-valor').textContent = '—';
+    document.getElementById('ir-valor').textContent = '—';
+    gsap.set(['#f1', '#f2', '#f3', '#f4', '#ram-hl-0', '#ram-hl-1'], { opacity: 0 });
+  }
+
+  function buildTimeline() {
+    if (masterTL) masterTL.kill();
+    resetAll();
+    masterTL = gsap.timeline({ paused: true });
+
+    // PASO 0: PC resalta
+    masterTL
+      .addLabel('paso-0')
+      .call(() => setStep(0))
+      .to('#reg-pc rect', { attr: { fill: '#fbbf24', stroke: '#d97706' }, duration: 0.4 })
+      .to('#reg-pc rect', { attr: { fill: '#ede9fe', stroke: '#7c3aed' }, duration: 0.35 }, '+=0.25')
+      .to('#reg-pc rect', { attr: { fill: '#fbbf24', stroke: '#d97706' }, duration: 0.4 }, '+=0.15')
+      .to('#reg-pc rect', { attr: { fill: '#ede9fe', stroke: '#7c3aed' }, duration: 0.35 }, '+=0.25')
+      .addPause()
+
+    // PASO 1: PC → MAR
+      .addLabel('paso-1')
+      .call(() => {
+        setStep(1);
+        document.getElementById('mar-valor').textContent = '0x0100';
+      })
+      .to('#f1', { opacity: 1, attr: { x2: 270 }, duration: 0.7, ease: 'power2.out' })
+      .to('#reg-mar rect', { attr: { fill: '#fbbf24', stroke: '#d97706' }, duration: 0.4 }, '<0.1')
+      .to('#reg-mar rect', { attr: { fill: '#ede9fe', stroke: '#7c3aed' }, duration: 0.35 }, '+=0.25')
+      .addPause()
+
+    // PASO 2: MAR → Bus → RAM
+      .addLabel('paso-2')
+      .call(() => setStep(2))
+      .to('#f2', { opacity: 1, attr: { x2: 736 }, duration: 1.0, ease: 'power1.inOut' })
+      .to('#ram-hl-0', { opacity: 1, duration: 0.5, ease: 'back.out(1.2)' }, '<0.2')
+      .addPause()
+
+    // PASO 3: RAM → MDR
+      .addLabel('paso-3')
+      .call(() => {
+        setStep(3);
+        document.getElementById('mdr-valor').textContent = 'LOAD R1';
+      })
+      .to('#f3', { opacity: 1, attr: { x2: 500 }, duration: 1.0, ease: 'power1.inOut' })
+      .to('#reg-mdr rect', { attr: { fill: '#fed7aa', stroke: '#ea580c' }, duration: 0.45 })
+      .to('#reg-mdr rect', { attr: { fill: '#ede9fe', stroke: '#7c3aed' }, duration: 0.35 }, '+=0.25')
+      .to('#ram-hl-0', { opacity: 0, duration: 0.3 }, '<0.15')
+      .addPause()
+
+    // PASO 4: MDR → IR
+      .addLabel('paso-4')
+      .call(() => {
+        setStep(4);
+        document.getElementById('ir-valor').textContent = 'LOAD R1';
+      })
+      .to('#f4', { opacity: 1, attr: { x2: 200 }, duration: 0.7, ease: 'power2.out' })
+      .to('#reg-ir rect', { attr: { fill: '#fbbf24', stroke: '#d97706' }, duration: 0.4 })
+      .to('#reg-ir rect', { attr: { fill: '#bfdbfe', stroke: '#3b82f6' }, duration: 0.5 }, '+=0.2')
+      .addPause()
+
+    // PASO 5: PC++
+      .addLabel('paso-5')
+      .call(() => {
+        setStep(5);
+        document.getElementById('pc-valor').textContent = '0x0101';
+      })
+      .to('#reg-pc rect', { attr: { fill: '#fbbf24', stroke: '#d97706' }, duration: 0.35 })
+      .to('#reg-pc rect', { attr: { fill: '#fbbf24', stroke: '#d97706' }, duration: 0.25 }, '+=0.3')
+      .to('#reg-pc rect', { attr: { fill: '#dcfce7', stroke: '#16a34a' }, duration: 0.4 }, '+=0.2')
+      .to('#ram-hl-1', { opacity: 1, duration: 0.55, ease: 'back.out(1.2)' }, '<0.1')
+      .to('#ram-hl-1', { attr: { fill: '#86efac' }, duration: 0.3, yoyo: true, repeat: 2 }, '+=0.3');
+
+    return masterTL;
+  }
+
+  btnPlay.addEventListener('click', () => {
+    if (!masterTL || masterTL.progress() === 0) buildTimeline();
+    masterTL.timeScale(parseFloat(speedSlider.value));
+    masterTL.play();
+    btnPlay.disabled = true;
+    btnPause.disabled = false;
+    btnNext.disabled = false;
+  });
+
+  btnPause.addEventListener('click', () => {
+    masterTL.pause();
+    btnPlay.disabled = false;
+    btnPause.disabled = true;
+  });
+
+  btnPrev.addEventListener('click', () => {
+    if (currentStep > 0) {
+      masterTL.pause();
+      masterTL.seek(`paso-${currentStep - 1}`);
+      setStep(currentStep - 1);
+    }
+  });
+
+  btnNext.addEventListener('click', () => {
+    if (currentStep < steps.length - 1) {
+      masterTL.pause();
+      masterTL.seek(`paso-${currentStep + 1}`);
+      setStep(currentStep + 1);
+    }
+  });
+
+  btnRestart.addEventListener('click', () => {
+    buildTimeline();
+    currentStep = -1;
+    descEl.innerHTML = 'Presiona <strong>Reproducir</strong> para comenzar el ciclo FETCH.';
+    btnPlay.disabled = false;
+    btnPause.disabled = true;
+    btnPrev.disabled = true;
+    btnNext.disabled = true;
+  });
+
+  speedSlider.addEventListener('input', () => {
+    const v = parseFloat(speedSlider.value);
+    speedLabel.textContent = v + '×';
+    if (masterTL) masterTL.timeScale(v);
+  });
+
+  buildTimeline();
+</script>
+</body>
+</html>

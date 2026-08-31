@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Arquitectura: CPU, Caché, Buses y RAM</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        
+        /* Grid de Memoria RAM */
+        .ram-grid {
+            display: grid;
+            gap: 2px; padding: 10px; background-color: #e2e8f0;
+            border-radius: 8px; border: 2px solid #cbd5e1;
+        }
+        
+        .ram-byte {
+            aspect-ratio: auto; min-height: 32px; background-color: #f1f5f9;
+            border: 1px solid #94a3b8; border-radius: 2px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            cursor: pointer; transition: all 0.2s ease; position: relative;
+        }
+        
+        .ram-byte .addr-label { font-size: 0.5rem; color: #64748b; font-family: monospace; }
+        .ram-byte .data-label { font-size: 0.75rem; font-weight: bold; color: #333; }
+        .ram-byte:hover { transform: scale(1.1); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2); z-index: 10; }
+        
+        /* Tooltip */
+        .ram-byte[data-tooltip]:hover::after {
+            content: attr(data-tooltip); position: absolute; bottom: 120%; left: 50%;
+            transform: translateX(-50%); background-color: #1e293b; color: white;
+            padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; white-space: nowrap; z-index: 20; pointer-events: none;
+        }
+
+        /* Padding Style */
+        .padding-block {
+            background: repeating-linear-gradient( 45deg, #cbd5e1, #cbd5e1 5px, #94a3b8 5px, #94a3b8 10px );
+            color: #1e293b !important;
+        }
+
+        /* Estilos de los Buses */
+        .bus-container { display: flex; flex-direction: column; justify-content: space-around; position: relative; height: 100%; padding: 20px 0; margin-top: 10px; }
+        .bus-line {
+            height: 20px; background-color: #cbd5e1; position: relative;
+            border-top: 2px solid #94a3b8; border-bottom: 2px solid #94a3b8;
+            display: flex; align-items: center; justify-content: center; transition: all 0.5s ease;
+        }
+        .bus-label {
+            position: absolute; background-color: white; padding: 2px 8px; border-radius: 12px;
+            font-size: 0.75rem; font-weight: 600; color: #475569; border: 1px solid #cbd5e1; z-index: 5;
+            display: flex; align-items: center; gap: 6px;
+        }
+        
+        /* Flechas Animadas */
+        .dir-arrow { font-size: 1.1rem; font-weight: 900; transition: all 0.3s ease; display: inline-block; }
+        .arrow-cpu-ram { color: #d97706; animation: slideRight 0.6s infinite alternate ease-in-out; }
+        .arrow-ram-cpu { color: #7e22ce; animation: slideLeft 0.6s infinite alternate ease-in-out; transform: scaleX(-1); }
+        .arrow-idle { color: #94a3b8; }
+
+        @keyframes slideRight { 0% { transform: translateX(-4px); } 100% { transform: translateX(4px); } }
+        @keyframes slideLeft { 0% { transform: translateX(4px) scaleX(-1); } 100% { transform: translateX(-4px) scaleX(-1); } }
+
+        /* Animaciones de Actividad */
+        .bus-active-control-write { background-color: #fef08a; border-color: #eab308; box-shadow: 0 0 12px #fef08a; }
+        .bus-active-control-read { background-color: #e9d5ff; border-color: #a855f7; box-shadow: 0 0 12px #e9d5ff; }
+        .bus-active-address { background-color: #bfdbfe; border-color: #3b82f6; box-shadow: 0 0 12px #bfdbfe; }
+        .bus-active-data { background-color: #bbf7d0; border-color: #22c55e; box-shadow: 0 0 12px #bbf7d0; }
+
+        .signal-popup {
+            position: absolute; top: -32px; background-color: #1e293b; color: white;
+            padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; opacity: 0; transition: opacity 0.3s; white-space: nowrap; font-weight: bold;
+        }
+        .signal-popup.show { opacity: 1; }
+
+        /* Contenedor de Paquetes de Datos Dinámicos */
+        .data-packet-container {
+            position: absolute; left: 0; opacity: 0; z-index: 10;
+            display: flex; gap: 2px; align-items: center; justify-content: center;
+        }
+
+        @keyframes movePacket { 0% { left: 0; opacity: 1; } 90% { left: 90%; opacity: 1; } 100% { left: 100%; opacity: 0; } }
+        @keyframes movePacketReverse { 0% { left: 100%; opacity: 1; } 90% { left: 10%; opacity: 1; } 100% { left: 0; opacity: 0; } }
+
+        .animate-packet { animation: movePacket 1.2s linear forwards; }
+        .animate-packet-reverse { animation: movePacketReverse 1.2s linear forwards; }
+        
+        .main-layout { display: grid; grid-template-columns: 280px 1fr 380px; gap: 20px; min-height: 400px; }
+        @keyframes pulse-btn { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+        .btn-pulse { animation: pulse-btn 2s infinite; }
+        
+        /* Banner de Animación */
+        @keyframes pulse-warning { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+        .anim-warning-box { display: none; }
+        .anim-warning-box.active { display: block; animation: pulse-warning 1s infinite; }
+    </style>
+</head>
+<body class="p-4 h-screen flex flex-col overflow-x-hidden">
+
+    <header class="mb-4 flex justify-between items-end">
+        <div>
+            <h1 class="text-3xl font-bold text-slate-800">Simulador de Arquitectura: Organización de Memoria</h1>
+            <p class="text-slate-600">Alineación por potencias de 2 (Padding), Unidireccionalidad de Buses y Algoritmos.</p>
+        </div>
+        <!-- Selector de Arquitectura General -->
+        <div class="bg-indigo-50 border border-indigo-200 p-2 rounded-lg shadow-sm w-80">
+            <label class="block text-xs font-bold text-indigo-800 mb-1">Arquitectura (Ancho de Bus de Datos)</label>
+            <select id="sys-arch" onchange="reiniciarSimulador()" class="w-full border border-indigo-300 rounded p-1 text-sm font-semibold bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <option value="4">32-bits (Bus mueve hasta 4 Bytes)</option>
+                <option value="8" selected>64-bits (Bus mueve hasta 8 Bytes)</option>
+            </select>
+        </div>
+    </header>
+
+    <!-- Área Principal -->
+    <main class="main-layout flex-grow bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+        
+        <!-- SECCIÓN 1: CPU -->
+        <div class="cpu-section bg-slate-50 border-2 border-slate-300 rounded-lg p-3 flex flex-col justify-between relative">
+            <div>
+                <h2 class="font-bold text-lg mb-3 text-slate-700 text-center border-b pb-2">CPU</h2>
+                <div class="w-full space-y-3">
+                    <div class="bg-white border border-slate-300 p-2 rounded text-center shadow-sm">
+                        <span class="text-xs text-slate-500 font-bold block" title="Memory Address Register">MAR (Dir. de Memoria)</span>
+                        <span id="mar-display" class="font-mono text-lg text-blue-600 font-bold">0x00</span>
+                    </div>
+                    <div class="bg-white border border-slate-300 p-2 rounded text-center shadow-sm">
+                        <span class="text-xs text-slate-500 font-bold block" title="Memory Buffer Register">MBR (Dato/Payload)</span>
+                        <span id="mbr-display" class="font-mono text-sm text-green-600 font-bold break-all">Vacío</span>
+                    </div>
+                    <div class="bg-white border border-slate-300 p-2 rounded text-center shadow-sm">
+                        <span class="text-xs text-slate-500 font-bold block">Unidad de Control</span>
+                        <span id="cu-display" class="font-mono text-xs text-slate-700">Esperando Instrucción</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Caché L1 -->
+            <div class="mt-4 bg-white border-2 border-indigo-200 p-2 rounded text-center shadow-sm">
+                <span class="text-xs text-indigo-600 font-bold block mb-1">Caché L1 (Almacena Palabras)</span>
+                <div id="cache-grid" class="grid grid-cols-1 gap-1"></div>
+            </div>
+        </div>
+
+        <!-- SECCIÓN 2: BUSES (Flujos Arquitectónicos Reales) -->
+        <div class="bus-container">
+            <!-- Aviso de Animación (oculto completamente por CSS) -->
+            <div id="anim-warning-box" class="anim-warning-box absolute -top-4 left-1/2 transform -translate-x-1/2 bg-yellow-400 text-yellow-900 text-xs font-bold px-4 py-1 rounded shadow-md z-50 border border-yellow-600">
+                ⚙️ Animación en proceso...
+            </div>
+
+            <!-- Control: SIEMPRE CPU -> RAM -->
+            <div class="bus-line" id="bus-control">
+                <span class="bus-label">Bus de Control <span id="dir-control" class="dir-arrow arrow-idle">■</span></span>
+                <div id="signal-control" class="signal-popup border border-yellow-400">Señal</div>
+            </div>
+            <!-- Direcciones: SIEMPRE CPU -> RAM -->
+            <div class="bus-line" id="bus-address">
+                <span class="bus-label">Bus de Direcciones <span id="dir-address" class="dir-arrow arrow-idle">■</span></span>
+                <div id="signal-address" class="signal-popup border border-blue-400">Dir: 0x00</div>
+            </div>
+            <!-- Datos: BIDIRECCIONAL -->
+            <div class="bus-line" id="bus-data">
+                <span class="bus-label">Bus de Datos <span id="dir-data" class="dir-arrow arrow-idle">■</span></span>
+                <div id="data-packet-container" class="data-packet-container"></div>
+                <div id="signal-data" class="signal-popup border border-green-400">Payload</div>
+            </div>
+        </div>
+
+        <!-- SECCIÓN 3: RAM REALISTA (64 BYTES) -->
+        <div class="ram-section flex flex-col max-h-full overflow-y-auto">
+            <div class="flex justify-between items-end mb-2">
+                <div>
+                    <h2 class="font-bold text-xl text-slate-700">RAM (64 Bytes)</h2>
+                    <p class="text-[10px] text-slate-500 leading-tight mt-1">
+                        Alineación por Potencias de 2.<br>
+                        Espacios grises = Padding (Relleno por Hardware).
+                    </p>
+                </div>
+                <span class="text-xs font-mono bg-slate-200 px-2 py-1 rounded text-slate-600 font-bold" id="ram-cap-label">64 B</span>
+            </div>
+            <div class="ram-grid" id="ram-grid"></div>
+            
+            <div id="decision-log" class="mt-2 p-2 bg-yellow-50 rounded border border-yellow-300 text-[11px] text-slate-700 font-mono hidden"></div>
+        </div>
+    </main>
+
+    <!-- Panel Inferior -->
+    <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+        <!-- ESCRITURA Y ALGORITMOS -->
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col">
+            <h3 class="font-bold text-slate-700 mb-2 border-b pb-1">Escritura (Algoritmos de Asignación)</h3>
+            <div class="flex flex-wrap gap-2 items-end mb-2">
+                <div class="w-16">
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Proceso</label>
+                    <div class="w-full border border-slate-200 bg-slate-100 text-slate-500 font-bold text-center text-sm rounded p-1.5 cursor-not-allowed">P<span id="next-pid">1</span></div>
+                </div>
+                <div class="w-24">
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Tamaño (B)</label>
+                    <input type="number" id="proc-size" min="1" max="64" value="3" class="w-full border text-sm rounded p-1.5 focus:border-blue-500 text-center font-bold">
+                </div>
+                <div class="flex-1">
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Elegir Algoritmo</label>
+                    <select id="proc-algo" onchange="actualizarInfoAlgoritmo()" class="w-full border text-sm rounded p-1.5 focus:border-blue-500 bg-slate-50">
+                        <option value="first">Primer Ajuste (First-Fit)</option>
+                        <option value="best">Mejor Ajuste (Best-Fit)</option>
+                        <option value="worst">Peor Ajuste (Worst-Fit)</option>
+                    </select>
+                </div>
+                <button id="btn-write" onclick="iniciarCarga()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-4 rounded text-sm transition-colors">
+                    Escribir
+                </button>
+            </div>
+            <!-- Info dinámica del algoritmo seleccionado -->
+            <div id="algo-info" class="bg-blue-50 border border-blue-100 p-2 rounded text-[11px] text-slate-700 leading-tight mt-1"></div>
+        </div>
+
+        <!-- LECTURA Y AJUSTES -->
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between">
+            <div>
+                <h3 class="font-bold text-slate-700 mb-2 border-b pb-1">Lectura desde RAM</h3>
+                <div class="flex gap-2 items-end mb-2">
+                    <div class="flex-1">
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Dir. de Byte a Leer (0-63)</label>
+                        <input type="number" id="read-address" min="0" max="63" value="0" class="w-full border text-sm rounded p-1.5 focus:border-purple-500">
+                    </div>
+                    <div class="w-24">
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Tam. (Bytes)</label>
+                        <input type="number" id="read-size" min="1" max="16" value="4" class="w-full border text-sm rounded p-1.5 focus:border-purple-500">
+                    </div>
+                    <button id="btn-read" onclick="iniciarLectura()" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-1.5 px-4 rounded text-sm transition-colors">
+                        Leer Dato
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex justify-between items-center bg-slate-50 p-2 rounded border border-slate-200 mt-2">
+                <label class="flex items-center text-sm font-bold text-slate-700 cursor-pointer">
+                    <!-- Desactivado por defecto -->
+                    <input type="checkbox" id="step-mode" class="mr-2 w-4 h-4 accent-blue-600"> 
+                    Pausar en cada ciclo
+                </label>
+                <button onclick="reiniciarSimulador()" class="bg-red-100 hover:bg-red-200 text-red-700 font-bold py-1 px-4 rounded text-sm transition-colors">
+                    Reset
+                </button>
+            </div>
+        </div>
+
+        <!-- ANÁLISIS DE FRAGMENTACIÓN -->
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col">
+            <h3 class="font-bold text-slate-700 mb-2 border-b pb-1">Análisis de Fragmentación</h3>
+            <div class="space-y-3 flex-grow flex flex-col justify-center">
+                <div class="flex justify-between items-center bg-amber-50 p-2.5 rounded-lg border border-amber-200">
+                    <div>
+                        <span class="block text-[10px] font-bold text-amber-800 uppercase">Interna (Padding)</span>
+                        <span id="internal-perc" class="text-[9px] text-amber-600 font-mono">(0% del uso)</span>
+                    </div>
+                    <span id="internal-frag" class="text-xl font-black text-amber-700 font-mono">0 B</span>
+                </div>
+                <div class="flex justify-between items-center bg-slate-100 p-2.5 rounded-lg border border-slate-300">
+                    <div>
+                        <span class="block text-[10px] font-bold text-slate-800 uppercase">Externa (Libre Total)</span>
+                        <span id="max-hole" class="text-[9px] text-slate-500 font-mono text-xs">Hueco máx: 64 B</span>
+                    </div>
+                    <span id="external-frag" class="text-xl font-black text-slate-700 font-mono">64 B</span>
+                </div>
+            </div>
+            <p class="text-[9px] text-slate-400 mt-2 italic text-center">Calculado por alineación y contigüidad.</p>
+        </div>
+    </div>
+
+    <!-- Consola -->
+    <div class="mt-4 flex gap-4 items-center mb-6">
+        <div id="console-msg" class="flex-grow p-3 rounded text-sm font-mono border font-bold bg-white text-slate-600 border-slate-300">
+            Simulador listo. La memoria tiene 64 Bytes inicializados.
+        </div>
+        <button id="btn-next-step" onclick="siguientePaso()" class="hidden btn-pulse bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg text-lg border-2 border-emerald-300">
+            Continuar ➔
+        </button>
+    </div>
+
+    <footer class="mt-4 text-center text-sm text-slate-500">
+        Desarrollado por Diego García
+    </footer>
+
+    <script>
+        const RAM_SIZE_BYTES = 64; 
+        let ram = new Array(RAM_SIZE_BYTES).fill(null);
+        let cache = [null, null, null]; 
+        let isAnimating = false;
+        let processCount = 0;
+        window.nextStepResolve = null;
+
+        const gridEl = document.getElementById('ram-grid');
+        const cacheGridEl = document.getElementById('cache-grid');
+        const marDisplay = document.getElementById('mar-display');
+        const mbrDisplay = document.getElementById('mbr-display');
+        const cuDisplay = document.getElementById('cu-display');
+        const consoleMsg = document.getElementById('console-msg');
+        const decisionLog = document.getElementById('decision-log');
+        const packetContainer = document.getElementById('data-packet-container');
+        const algoInfo = document.getElementById('algo-info');
+        const animWarning = document.getElementById('anim-warning-box');
+
+        const descripcionesAlgoritmos = {
+            'first': '<b>Primer Ajuste (First-Fit):</b> Busca secuencialmente desde la dir. 0 y asigna el primer hueco disponible donde quepa. <br><span class="text-green-600">Pro: Rápido.</span> <span class="text-red-600">Contra: Genera mucha fragmentación al inicio.</span>',
+            'best': '<b>Mejor Ajuste (Best-Fit):</b> Busca en TODA la RAM y escoge el hueco que deje el MENOR espacio sobrante.<br><span class="text-green-600">Pro: Optimiza grandes bloques.</span> <span class="text-red-600">Contra: Deja huecos inútilmente pequeños.</span>',
+            'worst': '<b>Peor Ajuste (Worst-Fit):</b> Busca en TODA la RAM y asigna en el hueco MÁS GRANDE disponible.<br><span class="text-green-600">Pro: Evita dejar huecos minúsculos inútiles.</span> <span class="text-red-600">Contra: Agota los espacios grandes rápidamente.</span>'
+        };
+
+        function actualizarInfoAlgoritmo() {
+            algoInfo.innerHTML = descripcionesAlgoritmos[document.getElementById('proc-algo').value];
+        }
+
+        function getWordSize() { return parseInt(document.getElementById('sys-arch').value); }
+
+        function renderRAM() {
+            const wordSize = getWordSize();
+            gridEl.style.gridTemplateColumns = `repeat(${wordSize}, 1fr)`;
+            gridEl.innerHTML = '';
+            
+            for (let i = 0; i < RAM_SIZE_BYTES; i++) {
+                const block = document.createElement('div');
+                block.className = 'ram-byte';
+                if (ram[i] && ram[i].isPadding) block.classList.add('padding-block');
+                
+                const addr = document.createElement('span');
+                addr.className = 'addr-label';
+                addr.innerText = i.toString(16).toUpperCase().padStart(2, '0');
+                block.appendChild(addr);
+
+                const dataSpan = document.createElement('span');
+                dataSpan.className = 'data-label';
+
+                if (ram[i] !== null) {
+                    if (!ram[i].isPadding) block.style.backgroundColor = ram[i].color;
+                    dataSpan.innerText = ram[i].id;
+                    block.setAttribute('data-tooltip', `Dir: 0x${i.toString(16).toUpperCase()} | ${ram[i].name}`);
+                    block.onclick = () => liberarProceso(ram[i].ownerId);
+                } else {
+                    dataSpan.innerText = '-';
+                    dataSpan.style.color = '#cbd5e1';
+                }
+                block.appendChild(dataSpan);
+                gridEl.appendChild(block);
+            }
+            actualizarFragmentacion();
+        }
+
+        function actualizarFragmentacion() {
+            let internal = 0;
+            let external = 0;
+            let maxHole = 0;
+            let currentHole = 0;
+            
+            for (let i = 0; i < RAM_SIZE_BYTES; i++) {
+                if (ram[i] === null) {
+                    external++;
+                    currentHole++;
+                } else {
+                    if (ram[i].isPadding) internal++;
+                    if (currentHole > maxHole) maxHole = currentHole;
+                    currentHole = 0;
+                }
+            }
+            if (currentHole > maxHole) maxHole = currentHole;
+
+            document.getElementById('internal-frag').innerText = `${internal} B`;
+            document.getElementById('external-frag').innerText = `${external} B`;
+            
+            const totalUsed = RAM_SIZE_BYTES - external;
+            const internalPerc = totalUsed > 0 ? ((internal / totalUsed) * 100).toFixed(1) : 0;
+            document.getElementById('internal-perc').innerText = `(${internalPerc}% del uso)`;
+            document.getElementById('max-hole').innerText = `Hueco máx: ${maxHole} B`;
+        }
+
+        function renderCache() {
+            cacheGridEl.innerHTML = '';
+            for (let i = 0; i < 3; i++) {
+                const line = document.createElement('div');
+                line.className = 'border text-[10px] py-1 rounded px-2 ' + (cache[i] ? 'font-bold bg-white' : 'text-slate-400 bg-slate-50');
+                if (cache[i]) {
+                    line.style.borderLeft = `4px solid ${cache[i].color}`;
+                    line.innerText = `Palabra en Dir. 0x${cache[i].address.toString(16).toUpperCase()} : [${cache[i].data}]`;
+                } else {
+                    line.innerText = 'Línea de Palabra Vacía';
+                }
+                cacheGridEl.appendChild(line);
+            }
+        }
+
+        function mostrarMensaje(msg, type = 'info') {
+            consoleMsg.className = 'flex-grow p-3 rounded text-sm font-mono border font-bold transition-all ';
+            const types = {
+                'error': 'bg-red-50 text-red-700 border-red-300',
+                'success': 'bg-emerald-50 text-emerald-700 border-emerald-300',
+                'read': 'bg-purple-50 text-purple-700 border-purple-300',
+                'info': 'bg-blue-50 text-blue-700 border-blue-300',
+                'warning': 'bg-yellow-50 text-yellow-700 border-yellow-400'
+            };
+            consoleMsg.className += (types[type] || types['info']);
+            consoleMsg.innerHTML = msg;
+        }
+
+        const delay = ms => new Promise(res => setTimeout(res, ms));
+
+        async function checkStep(mensaje, type = 'info') {
+            mostrarMensaje(mensaje, type);
+            if (document.getElementById('step-mode').checked) {
+                document.getElementById('btn-next-step').classList.remove('hidden');
+                await new Promise(resolve => { window.nextStepResolve = resolve; });
+                document.getElementById('btn-next-step').classList.add('hidden');
+            } else {
+                await delay(1600); 
+            }
+        }
+
+        window.siguientePaso = function() {
+            if (window.nextStepResolve) { window.nextStepResolve(); window.nextStepResolve = null; }
+        }
+
+        function setArrows(op) {
+            const arrCtrl = document.getElementById('dir-control');
+            const arrAddr = document.getElementById('dir-address');
+            const arrData = document.getElementById('dir-data');
+
+            if (op === 'write' || op === 'read') {
+                arrCtrl.className = 'dir-arrow arrow-cpu-ram'; arrCtrl.innerText = '➔';
+                arrAddr.className = 'dir-arrow arrow-cpu-ram'; arrAddr.innerText = '➔';
+                animWarning.classList.add('active'); // Muestra el banner
+            } else {
+                arrCtrl.className = 'dir-arrow arrow-idle'; arrCtrl.innerText = '■';
+                arrAddr.className = 'dir-arrow arrow-idle'; arrAddr.innerText = '■';
+                animWarning.classList.remove('active'); // Oculta el banner
+            }
+
+            if (op === 'write') {
+                arrData.className = 'dir-arrow arrow-cpu-ram'; arrData.innerText = '➔';
+            } else if (op === 'read') {
+                arrData.className = 'dir-arrow arrow-ram-cpu'; arrData.innerText = '➔'; 
+            } else {
+                arrData.className = 'dir-arrow arrow-idle'; arrData.innerText = '■';
+            }
+        }
+
+        // --- LÓGICA DE ALINEACIÓN POR POTENCIAS DE 2 ---
+        function getAlignmentRequirement(size, wordSize) {
+            // El hardware real alinea a potencias de 2 (1, 2, 4, 8)
+            let align = 1;
+            while (align < size && align < wordSize) { align *= 2; }
+            return align > wordSize ? wordSize : align;
+        }
+
+        function obtenerHuecosLibres() {
+            let huecos = [], start = -1, size = 0;
+            for (let i = 0; i < RAM_SIZE_BYTES; i++) {
+                if (ram[i] === null) {
+                    if (start === -1) start = i;
+                    size++;
+                } else {
+                    if (size > 0) { huecos.push({ start, size }); start = -1; size = 0; }
+                }
+            }
+            if (size > 0) huecos.push({ start, size });
+            return huecos;
+        }
+
+        function evaluarEspacio(sizeReqBytes, algo, wordSize) {
+            let huecos = obtenerHuecosLibres();
+            let validos = [];
+            let logDetails = [];
+
+            // 1. Obtener regla de alineación real (ej: 3 Bytes se alinea a 4)
+            let alignReq = getAlignmentRequirement(sizeReqBytes, wordSize);
+            
+            // 2. Obtener el tamaño total que ocupará incluyendo el padding
+            let allocSize = Math.ceil(sizeReqBytes / alignReq) * alignReq;
+
+            huecos.forEach(h => {
+                let alignedStart = Math.ceil(h.start / alignReq) * alignReq;
+                let wastedBefore = alignedStart - h.start;
+                
+                if (h.size >= wastedBefore + allocSize && alignedStart < RAM_SIZE_BYTES) {
+                    let usableSizeRemaining = h.size - wastedBefore - allocSize; // Espacio libre restante en este hueco
+                    validos.push({
+                        start: alignedStart,
+                        allocSize: allocSize, // Incluye el padding
+                        usableSize: usableSizeRemaining
+                    });
+                    logDetails.push(`[Hueco en 0x${h.start.toString(16)} -> Empieza en 0x${alignedStart.toString(16)}. Sobra: ${usableSizeRemaining}B]`);
+                }
+            });
+
+            if (validos.length === 0) return { error: true, huecosEncontrados: logDetails.join(', ') };
+
+            let elegido;
+            if (algo === 'first') elegido = validos[0];
+            else if (algo === 'best') elegido = validos.sort((a, b) => a.usableSize - b.usableSize)[0];
+            else if (algo === 'worst') elegido = validos.sort((a, b) => b.usableSize - a.usableSize)[0];
+
+            return { error: false, start: elegido.start, allocSize: elegido.allocSize, huecosEncontrados: logDetails.join(' | ') };
+        }
+
+        function crearCajitas(cantidadDatos, cantidadPadding, color) {
+            packetContainer.innerHTML = '';
+            // Datos útiles
+            for(let i=0; i<cantidadDatos; i++) {
+                const box = document.createElement('div');
+                box.className = 'w-3 h-4 rounded-sm border border-black/30 shadow-sm flex items-center justify-center text-[8px] font-bold text-black/50';
+                box.style.backgroundColor = color;
+                box.innerText = 'B';
+                packetContainer.appendChild(box);
+            }
+            // Padding (Desperdicio gris)
+            for(let i=0; i<cantidadPadding; i++) {
+                const pad = document.createElement('div');
+                pad.className = 'w-3 h-4 rounded-sm border border-black/30 shadow-sm flex items-center justify-center text-[8px] font-bold text-black/50';
+                pad.style.background = 'repeating-linear-gradient(45deg, #cbd5e1, #cbd5e1 3px, #94a3b8 3px, #94a3b8 6px)';
+                pad.innerText = 'P';
+                packetContainer.appendChild(pad);
+            }
+        }
+
+        // --- ESCRITURA ---
+        async function iniciarCarga() {
+            if (isAnimating) return;
+            
+            const sizeBytes = parseInt(document.getElementById('proc-size').value);
+            const algo = document.getElementById('proc-algo').value;
+            const wordSize = getWordSize(); 
+            
+            if (isNaN(sizeBytes) || sizeBytes < 1) return mostrarMensaje('Error: Tamaño inválido.', 'error');
+
+            const evaluacion = evaluarEspacio(sizeBytes, algo, wordSize);
+            
+            if (evaluacion.error) {
+                decisionLog.classList.remove('hidden');
+                decisionLog.innerHTML = `<span class="text-red-600 font-bold">FALLO (Fragmentación Estricta):</span> Opciones: ${evaluacion.huecosEncontrados || 'Ninguno'}.`;
+                return mostrarMensaje(`Error: No hay espacio contiguo suficiente alineado para almacenar los datos.`, 'error');
+            }
+
+            isAnimating = true;
+            document.getElementById('btn-write').classList.add('opacity-50', 'cursor-not-allowed');
+            
+            processCount++;
+            const procId = `P${processCount}`;
+            document.getElementById('next-pid').innerText = (processCount + 1).toString();
+            
+            const procColor = `hsl(${Math.floor(Math.random() * 360)}, 65%, 85%)`;
+            const newProcess = { id: procId, name: `Proceso ${procId}`, size: sizeBytes, color: procColor, ownerId: procId };
+
+            const startIndex = evaluacion.start;
+            const allocSize = evaluacion.allocSize;
+            const paddingBytes = allocSize - sizeBytes;
+            const numCycles = Math.ceil(allocSize / wordSize); 
+
+            decisionLog.classList.remove('hidden');
+            let infoPadding = paddingBytes > 0 ? ` (+${paddingBytes}B de Padding)` : '';
+            decisionLog.innerHTML = `<b>Asignador (${algo}):</b> Evaluado: ${evaluacion.huecosEncontrados}. <br>➔ <b>Decidido: Dir 0x${startIndex.toString(16)}</b>. Ocupará ${allocSize}B en RAM${infoPadding}.`;
+
+            cuDisplay.innerText = `Escribiendo ${allocSize} Bytes`;
+            setArrows('write');
+
+            await checkStep(`<b>Preparación:</b> Se alojará "${procId}". El dato es de ${sizeBytes}B, pero por alineación requerirá un bloque total de <b>${allocSize}B</b>.`);
+
+            let remainingData = sizeBytes;
+            let remainingPadding = paddingBytes;
+
+            for (let c = 0; c < numCycles; c++) {
+                let chunkStart = startIndex + (c * wordSize);
+                let bytesInThisCycle = Math.min(wordSize, allocSize - (c * wordSize));
+                
+                let dataToSend = Math.min(bytesInThisCycle, remainingData);
+                let padToSend = bytesInThisCycle - dataToSend;
+                
+                remainingData -= dataToSend;
+                remainingPadding -= padToSend;
+
+                cuDisplay.innerText = `Ciclo Write ${c+1}/${numCycles}`;
+                marDisplay.innerText = `0x${chunkStart.toString(16).padStart(2, '0').toUpperCase()}`;
+                mbrDisplay.innerText = `[${dataToSend}B Dato | ${padToSend}B Pad]`;
+
+                await checkStep(`<b>Ciclo ${c+1}:</b> La CPU asigna Dir 0x${chunkStart.toString(16).toUpperCase()} al MAR.`, 'warning');
+
+                document.getElementById('bus-control').classList.add('bus-active-control-write');
+                document.getElementById('signal-control').innerText = "ESCRITURA"; document.getElementById('signal-control').classList.add('show');
+                
+                document.getElementById('bus-address').classList.add('bus-active-address');
+                document.getElementById('signal-address').innerText = `Dir: ${marDisplay.innerText}`; document.getElementById('signal-address').classList.add('show');
+                
+                document.getElementById('bus-data').classList.add('bus-active-data');
+                document.getElementById('signal-data').innerText = `Enviando ${bytesInThisCycle}B`; document.getElementById('signal-data').classList.add('show');
+                
+                crearCajitas(dataToSend, padToSend, procColor);
+                packetContainer.classList.add('animate-packet');
+
+                await checkStep(`<b>Ciclo ${c+1}:</b> Observa las cajitas (Datos a color y Padding en gris) fluyendo (➔) hacia RAM.`);
+
+                // Rellenar RAM secuencialmente
+                for (let i = 0; i < bytesInThisCycle; i++) {
+                    let absoluteIndex = chunkStart + i;
+                    if (absoluteIndex < RAM_SIZE_BYTES) {
+                        let isPad = absoluteIndex >= (startIndex + sizeBytes);
+                        ram[absoluteIndex] = {
+                            id: isPad ? 'PAD' : procId,
+                            name: isPad ? `Padding (Desperdicio)` : newProcess.name,
+                            color: procColor,
+                            isPadding: isPad,
+                            ownerId: procId
+                        };
+                    }
+                }
+                renderRAM();
+
+                // Limpiar ciclo
+                document.getElementById('bus-control').classList.remove('bus-active-control-write'); document.getElementById('signal-control').classList.remove('show');
+                document.getElementById('bus-address').classList.remove('bus-active-address'); document.getElementById('signal-address').classList.remove('show');
+                document.getElementById('bus-data').classList.remove('bus-active-data'); document.getElementById('signal-data').classList.remove('show');
+                packetContainer.classList.remove('animate-packet');
+                await delay(300);
+            }
+
+            setArrows('idle');
+            cuDisplay.innerText = `En espera`; marDisplay.innerText = `0x00`; mbrDisplay.innerText = `Vacío`;
+            
+            await checkStep(`<b>¡Alojamiento Completo!</b> Datos almacenados. Nota cómo los bloques "PAD" en gris rellenan el espacio para cumplir la alineación.`, 'success');
+            
+            document.getElementById('btn-write').classList.remove('opacity-50', 'cursor-not-allowed');
+            isAnimating = false;
+        }
+
+        // --- LECTURA ---
+        async function iniciarLectura() {
+            if (isAnimating) return;
+            const startByte = parseInt(document.getElementById('read-address').value);
+            const sizeBytes = parseInt(document.getElementById('read-size').value);
+            const wordSize = getWordSize();
+            
+            if (isNaN(startByte) || startByte < 0 || startByte >= RAM_SIZE_BYTES) return mostrarMensaje('Error: Dirección Byte fuera de límites (0-63).', 'error');
+            if (isNaN(sizeBytes) || sizeBytes < 1) return mostrarMensaje('Error: Cantidad inválida.', 'error');
+
+            isAnimating = true;
+            document.getElementById('btn-read').classList.add('opacity-50', 'cursor-not-allowed');
+            decisionLog.classList.add('hidden');
+            
+            const baseWordAddress = Math.floor(startByte / wordSize) * wordSize;
+            const endWordAddress = Math.floor((startByte + sizeBytes - 1) / wordSize) * wordSize;
+            const numCycles = ((endWordAddress - baseWordAddress) / wordSize) + 1;
+
+            await checkStep(`<b>Lectura Iniciada:</b> La CPU siempre extrae palabras completas de RAM, por lo que tomará <b>${numCycles} ciclo(s)</b>.`, 'read');
+
+            for (let c = 0; c < numCycles; c++) {
+                let currentWordAddr = baseWordAddress + (c * wordSize);
+                if (currentWordAddr >= RAM_SIZE_BYTES) break;
+
+                cuDisplay.innerText = `Ciclo Read ${c+1}/${numCycles}`;
+                marDisplay.innerText = `0x${currentWordAddr.toString(16).padStart(2, '0').toUpperCase()}`;
+                mbrDisplay.innerText = `Buscando...`;
+                
+                const hitLine = cache.find(ch => ch && ch.address === currentWordAddr);
+                
+                if (hitLine) {
+                    mbrDisplay.innerText = `[${hitLine.data}]`;
+                    await checkStep(`<b>Ciclo ${c+1}: ¡CACHE HIT!</b> Palabra 0x${currentWordAddr.toString(16).toUpperCase()} obtenida directo de Caché.`, 'success');
+                    continue; 
+                }
+
+                await checkStep(`<b>Ciclo ${c+1}: CACHE MISS.</b> Dir 0x${currentWordAddr.toString(16).toUpperCase()} no en Caché. Activando buses a RAM.`, 'error');
+                
+                setArrows('read');
+                
+                document.getElementById('bus-control').classList.add('bus-active-control-read');
+                document.getElementById('signal-control').innerText = "LECTURA"; document.getElementById('signal-control').classList.add('show');
+                
+                document.getElementById('bus-address').classList.add('bus-active-address');
+                document.getElementById('signal-address').innerText = `Dir: ${marDisplay.innerText}`; document.getElementById('signal-address').classList.add('show');
+                
+                await checkStep(`<b>Ciclo ${c+1}:</b> Control y Dirección fluyen (➔) a RAM solicitando datos.`, 'read');
+
+                let wordContent = new Set();
+                let mainColor = '#e2e8f0';
+                for(let i=0; i<wordSize; i++) {
+                    let b = ram[currentWordAddr+i];
+                    if(b && !b.isPadding) { wordContent.add(b.id); mainColor = b.color; }
+                }
+                const payloadText = wordContent.size > 0 ? Array.from(wordContent).join('-') : 'Vacío/Pad';
+
+                document.getElementById('bus-data').classList.add('bus-active-data');
+                document.getElementById('signal-data').innerText = `Palabra [${payloadText}]`; document.getElementById('signal-data').classList.add('show');
+                
+                crearCajitas(wordSize, 0, mainColor);
+                packetContainer.classList.add('animate-packet-reverse'); 
+                
+                await checkStep(`<b>Ciclo ${c+1}:</b> La RAM contesta devolviendo la palabra entera por el Bus de Datos. (⬅)`, 'read');
+
+                cache.shift(); 
+                cache.push({address: currentWordAddr, data: payloadText, color: mainColor});
+                renderCache();
+                mbrDisplay.innerText = `[${payloadText}]`;
+
+                document.getElementById('bus-control').classList.remove('bus-active-control-read'); document.getElementById('signal-control').classList.remove('show');
+                document.getElementById('bus-address').classList.remove('bus-active-address'); document.getElementById('signal-address').classList.remove('show');
+                document.getElementById('bus-data').classList.remove('bus-active-data'); document.getElementById('signal-data').classList.remove('show');
+                packetContainer.classList.remove('animate-packet-reverse');
+                setArrows('idle');
+            }
+
+            cuDisplay.innerText = `En espera`; marDisplay.innerText = `0x00`; 
+            await checkStep(`<b>Extracción Finalizada:</b> La CPU obtuvo los Bytes. Las palabras leídas se alojaron en Caché.`, 'info');
+            
+            document.getElementById('btn-read').classList.remove('opacity-50', 'cursor-not-allowed');
+            isAnimating = false;
+        }
+
+        function liberarProceso(ownerId) {
+            if (isAnimating) return;
+            let count = 0, padCount = 0, name = "";
+            for (let i = 0; i < RAM_SIZE_BYTES; i++) {
+                if (ram[i] !== null && ram[i].ownerId === ownerId) { 
+                    if(ram[i].isPadding) padCount++; else name = ram[i].name;
+                    ram[i] = null; 
+                    count++; 
+                }
+            }
+            if (count > 0) {
+                renderRAM();
+                mostrarMensaje(`<b>Proceso Finalizado:</b> "${name}" liberó ${count} Bytes en total (${count-padCount} útiles + ${padCount} padding).`, 'warning');
+                decisionLog.classList.add('hidden');
+            }
+        }
+
+        function reiniciarSimulador() {
+            if (isAnimating) return;
+            ram = new Array(RAM_SIZE_BYTES).fill(null);
+            cache = [null, null, null];
+            processCount = 0;
+            document.getElementById('next-pid').innerText = "1";
+            renderRAM(); renderCache();
+            setArrows('idle');
+            decisionLog.classList.add('hidden');
+            mostrarMensaje('Sistema Reiniciado. La matriz de 64 Bytes se adaptó a la arquitectura.', 'info');
+        }
+
+        actualizarInfoAlgoritmo();
+        reiniciarSimulador();
+    </script>
+</body>
+</html>

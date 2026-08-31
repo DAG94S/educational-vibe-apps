@@ -1,0 +1,585 @@
+/* Import elegant Outfit and Inter typography from Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&family=Share+Tech+Mono&display=swap');
+
+:root {
+  --font-title: 'Outfit', 'Inter', sans-serif;
+  --font-mono: 'Share Tech Mono', monospace;
+  --font-body: 'Inter', sans-serif;
+
+  /* HSL Color System - Light Premium / White esmerilado Theme */
+  --bg-bunker: hsl(210, 20%, 96%);
+  --bg-panel: hsla(210, 25%, 100%, 0.7);
+  --bg-panel-hover: hsla(210, 25%, 100%, 0.85);
+  --border-glass: rgba(0, 0, 0, 0.08);
+  --border-glow: rgba(0, 180, 120, 0.25);
+
+  --color-text: hsl(210, 25%, 15%);
+  --color-muted: hsl(210, 15%, 45%);
+  --color-glow: hsl(150, 90%, 35%);           /* Deep phosphor green */
+  --color-glow-secondary: hsl(195, 90%, 40%);  /* Darker Cyan */
+  --color-glow-warning: hsl(35, 95%, 42%);     /* Amber/Orange */
+  --color-glow-error: hsl(0, 80%, 45%);        /* Deep Red */
+
+  --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+}
+
+body, html, #root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--bg-bunker);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ----------------------------------------------------
+ * Pointer Events Routing Overlay
+ * ---------------------------------------------------- */
+#ui-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 10;
+  pointer-events: none; /* Let clicks pass through to Three.js canvas */
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 24px;
+}
+
+/* Restore click capability to UI elements */
+.interactive-ui {
+  pointer-events: auto;
+}
+
+/* ----------------------------------------------------
+ * Glassmorphic Panels
+ * ---------------------------------------------------- */
+.glass-panel {
+  background: var(--bg-panel);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid var(--border-glass);
+  box-shadow: 0 10px 30px 0 rgba(31, 38, 135, 0.08);
+  border-radius: 16px;
+  padding: 20px;
+  transition: var(--transition-smooth);
+}
+
+.glass-panel:hover {
+  background: var(--bg-panel-hover);
+  border-color: rgba(0, 0, 0, 0.12);
+  box-shadow: 0 12px 35px 0 rgba(31, 38, 135, 0.12);
+}
+
+.glow-border {
+  border: 1px solid var(--border-glow);
+  box-shadow: 0 0 15px rgba(0, 180, 120, 0.08);
+}
+
+/* Header UI Styles */
+header.top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  margin-bottom: auto;
+}
+
+.title-section h1 {
+  font-family: var(--font-title);
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: 1px;
+  background: linear-gradient(135deg, #1e2229 0%, var(--color-glow-secondary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-transform: uppercase;
+}
+
+.title-section p {
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+.stats-bar {
+  display: flex;
+  gap: 16px;
+}
+
+.stat-box {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.stat-label {
+  font-size: 0.65rem;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+}
+
+.stat-value {
+  font-family: var(--font-mono);
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--color-glow);
+  text-shadow: 0 0 4px rgba(0, 180, 120, 0.2);
+}
+
+.stat-value.warning {
+  color: var(--color-glow-warning);
+  text-shadow: 0 0 4px rgba(255, 130, 0, 0.2);
+}
+
+/* Main Dashboard UI */
+.main-dashboard {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  gap: 24px;
+  margin-top: auto;
+}
+
+.control-column {
+  width: 330px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.console-column {
+  flex: 1;
+  max-width: 500px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+h3.panel-title {
+  font-family: var(--font-title);
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--color-glow-secondary);
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Role Selector and Info Badge */
+.role-badge {
+  display: inline-block;
+  padding: 6px 12px;
+  background: rgba(0, 180, 120, 0.08);
+  border: 1px solid var(--border-glow);
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-glow);
+  text-transform: uppercase;
+}
+
+.description-text {
+  font-size: 0.8rem;
+  color: var(--color-muted);
+  line-height: 1.4;
+  margin-bottom: 12px;
+}
+
+/* Form controls & Buttons */
+.btn {
+  width: 100%;
+  padding: 10px 16px;
+  background: rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  color: var(--color-text);
+  font-family: var(--font-title);
+  font-weight: 600;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.btn:hover {
+  background: rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.2);
+}
+
+.btn-primary {
+  background: rgba(0, 180, 120, 0.1);
+  border-color: var(--color-glow);
+  color: var(--color-glow);
+}
+
+.btn-primary:hover {
+  background: rgba(0, 180, 120, 0.2);
+  box-shadow: 0 0 12px rgba(0, 180, 120, 0.12);
+}
+
+/* Enigma Config Lists */
+.config-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.config-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.03);
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.03);
+}
+
+.config-row span {
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  text-transform: uppercase;
+}
+
+.config-row strong {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  color: var(--color-text);
+}
+
+/* Interactive inputs for settings */
+.rotors-selector {
+  display: flex;
+  gap: 4px;
+}
+
+.rotor-select-btn {
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  width: 32px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.rotor-select-btn:hover {
+  border-color: var(--color-glow-secondary);
+  color: var(--color-glow-secondary);
+  background: white;
+}
+
+/* Console logs & Inputs */
+.console-box {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid var(--border-glass);
+  border-radius: 12px;
+  padding: 12px;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  height: 140px;
+  overflow-y: auto;
+  color: var(--color-text);
+}
+
+.console-line {
+  line-height: 1.3;
+}
+
+.console-line.system {
+  color: var(--color-glow-secondary);
+}
+
+.console-line.input {
+  color: var(--color-text);
+}
+
+.console-line.output {
+  color: var(--color-glow);
+  font-weight: 600;
+}
+
+.console-line.success {
+  color: var(--color-glow);
+  font-weight: 600;
+}
+
+.console-line.warning {
+  color: var(--color-glow-warning);
+}
+
+.input-container {
+  display: flex;
+  gap: 8px;
+}
+
+.text-input {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid var(--border-glass);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  outline: none;
+  transition: var(--transition-smooth);
+}
+
+.text-input:focus {
+  border-color: var(--color-glow-secondary);
+  background: white;
+}
+
+/* ----------------------------------------------------
+ * Interactive Central Modal (3D Pedagogy Binder)
+ * ---------------------------------------------------- */
+.modal-backdrop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(240, 244, 248, 0.5);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  z-index: 100;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+
+.modal-backdrop.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modal-box {
+  width: 100%;
+  max-width: 500px;
+  background: hsla(210, 20%, 98%, 0.95);
+  border: 1px solid var(--border-glow);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1), 0 20px 50px rgba(0, 0, 0, 0.05);
+  border-radius: 20px;
+  padding: 32px;
+  transform: translateY(20px);
+  transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  color: var(--color-text);
+}
+
+.modal-backdrop.active .modal-box {
+  transform: translateY(0);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border-glass);
+  padding-bottom: 16px;
+  margin-bottom: 20px;
+}
+
+.modal-header h2 {
+  font-family: var(--font-title);
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--color-glow-secondary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.close-btn {
+  background: transparent;
+  border: none;
+  color: var(--color-muted);
+  font-size: 1.5rem;
+  cursor: pointer;
+  line-height: 1;
+  transition: var(--transition-smooth);
+}
+
+.close-btn:hover {
+  color: var(--color-glow-error);
+}
+
+.modal-body {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
+.modal-body p {
+  margin-bottom: 16px;
+}
+
+.quiz-container {
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px solid var(--border-glass);
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 20px;
+}
+
+.quiz-question {
+  font-weight: 600;
+  color: var(--color-glow-secondary);
+  margin-bottom: 12px;
+}
+
+.quiz-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.option-btn {
+  text-align: left;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid var(--border-glass);
+  border-radius: 8px;
+  padding: 12px 16px;
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.option-btn:hover {
+  background: rgba(0, 180, 120, 0.05);
+  border-color: rgba(0, 180, 120, 0.4);
+}
+
+.option-btn.correct {
+  background: rgba(0, 180, 120, 0.15);
+  border-color: var(--color-glow);
+  color: var(--color-glow);
+  font-weight: 600;
+}
+
+.option-btn.incorrect {
+  background: rgba(255, 0, 0, 0.06);
+  border-color: var(--color-glow-error);
+  color: var(--color-glow-error);
+}
+
+.feedback-area {
+  margin-top: 12px;
+  font-size: 0.8rem;
+  min-height: 24px;
+  line-height: 1.4;
+}
+
+.feedback-area.success {
+  color: var(--color-glow);
+}
+
+.feedback-area.error {
+  color: var(--color-glow-error);
+}
+
+/* ----------------------------------------------------
+ * OrbitControls Camera Instructions HUD
+ * ---------------------------------------------------- */
+.camera-tips {
+  position: absolute;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid var(--border-glass);
+  border-radius: 20px;
+  padding: 6px 16px;
+  font-size: 0.7rem;
+  color: var(--color-muted);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  pointer-events: none;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+  z-index: 100;
+  backdrop-filter: blur(10px);
+}
+
+/* ----------------------------------------------------
+ * Mission Checklist Styles
+ * ---------------------------------------------------- */
+.mission-panel {
+  background: rgba(0, 180, 120, 0.03);
+  border: 1px solid rgba(0, 180, 120, 0.15);
+  border-radius: 12px;
+  padding: 14px;
+  margin-top: 12px;
+}
+
+.mission-title {
+  font-family: var(--font-title);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-glow);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mission-step {
+  font-size: 0.75rem;
+  color: var(--color-text);
+  line-height: 1.4;
+  margin-bottom: 6px;
+}
+
+.mission-step:last-child {
+  margin-bottom: 0;
+}
+
+/* Scrollbar customization */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.18);
+}

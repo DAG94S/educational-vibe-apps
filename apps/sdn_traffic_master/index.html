@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>SDN Traffic Master</title>
+    <style>
+        :root { --bg: #1a1a2e; --panel-bg: #16213e; --text: #e94560; }
+        body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: white; display: grid; grid-template-columns: 3fr 1fr; grid-template-rows: auto 1fr; height: 100vh; overflow: hidden; }
+        header { grid-column: 1 / 3; padding: 1rem; background: var(--panel-bg); border-bottom: 2px solid var(--text); display: flex; justify-content: space-between; }
+        #topology-container { position: relative; width: 100%; height: 100%; background: #0f172a; }
+        #canvas-net { display: block; width: 100%; height: 100%; }
+        #sidebar { display: flex; flex-direction: column; background: var(--panel-bg); border-left: 1px solid #333; padding: 1rem; gap: 1rem; }
+        .panel { background: rgba(0,0,0,0.3); padding: 1rem; border-radius: 8px; flex: 1; overflow-y: auto; }
+        button { background: var(--text); color: white; border: none; padding: 0.5rem 1rem; cursor: pointer; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>SDN Traffic Master</h1>
+        <div id="global-stats">Score: <span id="score">0</span> | Latencia Avg: <span id="avg-latency">0</span>ms</div>
+    </header>
+    <main id="topology-container">
+        <canvas id="canvas-net"></canvas>
+    </main>
+    <aside id="sidebar">
+        <div class="panel" id="sdn-console">
+            <h2>Consola SDN</h2>
+            <div id="rules-list"></div>
+            <hr>
+            <input type="text" id="rule-input" placeholder="Ej: IF VoIP THEN S1->S2" style="width:100%; margin-bottom:5px;">
+            <button id="add-rule-btn">Añadir Regla</button>
+        </div>
+        <div class="panel" id="stats-panel">
+            <h2>Métricas</h2>
+            <p>Paquetes perdidos: <span id="dropped-packets">0</span></p>
+        </div>
+    </aside>
+    <script>
+        const canvas = document.getElementById('canvas-net');
+        const ctx = canvas.getContext('2d');
+        let width, height;
+
+        function resize() {
+            width = canvas.parentElement.clientWidth;
+            height = canvas.parentElement.clientHeight;
+            canvas.width = width;
+            canvas.height = height;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Data Models
+        let flowRules = [];
+        const nodes = [
+            { id: 'S1', x: 0.2, y: 0.5, type: 'source' },
+            { id: 'S2', x: 0.5, y: 0.2, type: 'switch' },
+            { id: 'S3', x: 0.5, y: 0.8, type: 'switch' },
+            { id: 'S4', x: 0.8, y: 0.5, type: 'destination' }
+        ];
+        
+        const links = [
+            { source: 'S1', target: 'S2', capacity: 100, usage: 0 },
+            { source: 'S1', target: 'S3', capacity: 100, usage: 0 },
+            { source: 'S2', target: 'S4', capacity: 50, usage: 0 },
+            { source: 'S3', target: 'S4', capacity: 100, usage: 0 }
+        ];
+
+        function drawNetwork() {
+            ctx.clearRect(0, 0, width, height);
+            
+            // Draw links
+            links.forEach(link => {
+                const src = nodes.find(n => n.id === link.source);
+                const tgt = nodes.find(n => n.id === link.target);
+                ctx.beginPath();
+                ctx.moveTo(src.x * width, src.y * height);
+                ctx.lineTo(tgt.x * width, tgt.y * height);
+                // Color base on usage
+                const usageRatio = link.usage / link.capacity;
+                ctx.strokeStyle = usageRatio > 0.9 ? '#ff4c4c' : (usageRatio > 0.5 ? '#ffaa00' : '#4caf50');
+                ctx.lineWidth = 4;
+                ctx.stroke();
+            });
+
+            // Draw nodes
+            nodes.forEach(node => {
+                ctx.beginPath();
+                ctx.arc(node.x * width, node.y * height, 20, 0, Math.PI * 2);
+                ctx.fillStyle = node.type === 'switch' ? '#3b82f6' : '#8b5cf6';
+                ctx.fill();
+                ctx.fillStyle = '#fff';
+                ctx.font = '14px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(node.id, node.x * width, node.y * height + 5);
+            });
+        }
+
+        drawNetwork();
+
+        // Añadir al final del script:
+        let packets = [];
+        let droppedPackets = 0;
+        let lastTime = performance.now();
+
+        // Default routing table (S1->S2->S4 is the default path)
+        function getNextHop(currentNodeId) {
+            // Check custom rules first
+            const rule = flowRules.find(r => r.node === currentNodeId);
+            if (rule) return rule.nextHop;
+            
+            // Fallback default
+            if (currentNodeId === 'S1') return 'S2';
+            if (currentNodeId === 'S2') return 'S4';
+            if (currentNodeId === 'S3') return 'S4';
+            return null;
+        }
+
+        function spawnPacket() {
+            if (Math.random() < 0.05) { // 5% chance per frame
+                packets.push({
+                    id: Math.random(),
+                    currentNode: 'S1',
+                    targetNode: getNextHop('S1'),
+                    progress: 0,
+                    type: 'Data'
+                });
+            }
+        }
+
+        function updateSimulation(time) {
+            const dt = time - lastTime;
+            lastTime = time;
+
+            // Reset link usage
+            links.forEach(l => l.usage = 0);
+
+            spawnPacket();
+
+            // Update packets
+            for (let i = packets.length - 1; i >= 0; i--) {
+                let p = packets[i];
+                p.progress += (dt / 1000); // 1 sec to traverse link
+                
+                // Count usage on the active link
+                const activeLink = links.find(l => l.source === p.currentNode && l.target === p.targetNode);
+                if (activeLink) {
+                    activeLink.usage += 10; // each packet consumes 10 capacity
+                }
+
+                if (p.progress >= 1) {
+                    if (p.targetNode === 'S4') {
+                        packets.splice(i, 1); // Arrived
+                    } else {
+                        p.currentNode = p.targetNode;
+                        p.targetNode = getNextHop(p.currentNode);
+                        p.progress = 0;
+                    }
+                }
+            }
+
+            // Check capacity and drop packets
+            links.forEach(l => {
+                if (l.usage > l.capacity) {
+                    // Drop random packet on this link
+                    const linkPackets = packets.filter(p => p.currentNode === l.source && p.targetNode === l.target);
+                    if (linkPackets.length > 0) {
+                        const idx = packets.indexOf(linkPackets[0]);
+                        packets.splice(idx, 1);
+                        droppedPackets++;
+                        document.getElementById('dropped-packets').innerText = droppedPackets;
+                    }
+                }
+            });
+
+            drawNetwork();
+            
+            // Draw packets
+            packets.forEach(p => {
+                const src = nodes.find(n => n.id === p.currentNode);
+                const tgt = nodes.find(n => n.id === p.targetNode);
+                if(!tgt) return;
+                const currentX = src.x + (tgt.x - src.x) * p.progress;
+                const currentY = src.y + (tgt.y - src.y) * p.progress;
+                
+                ctx.beginPath();
+                ctx.arc(currentX * width, currentY * height, 5, 0, Math.PI * 2);
+                ctx.fillStyle = '#fff';
+                ctx.fill();
+            });
+
+            requestAnimationFrame(updateSimulation);
+        }
+
+        document.getElementById('add-rule-btn').addEventListener('click', () => {
+            const input = document.getElementById('rule-input').value.toUpperCase();
+            // Simple parser: S1->S3
+            if (input.includes('->')) {
+                const parts = input.split('->');
+                const src = parts[0].trim();
+                const tgt = parts[1].trim();
+                
+                // Check if link exists
+                const linkExists = links.some(l => l.source === src && l.target === tgt);
+                if (linkExists) {
+                    flowRules.push({ node: src, nextHop: tgt, raw: input });
+                    renderRules();
+                    document.getElementById('rule-input').value = '';
+                } else {
+                    alert('Enlace inválido. Ejemplo válido: S1->S3');
+                }
+            }
+        });
+
+        function renderRules() {
+            const list = document.getElementById('rules-list');
+            list.innerHTML = flowRules.map((r, idx) => 
+                `<div style="background:#333; padding:5px; margin:5px 0;">Rule ${idx+1}: ${r.raw} 
+                <button onclick="deleteRule(${idx})" style="float:right; padding:2px 5px;">X</button></div>`
+            ).join('');
+        }
+
+        function deleteRule(idx) {
+            flowRules.splice(idx, 1);
+            renderRules();
+        }
+
+        requestAnimationFrame(updateSimulation);
+    </script>
+</body>
+</html>

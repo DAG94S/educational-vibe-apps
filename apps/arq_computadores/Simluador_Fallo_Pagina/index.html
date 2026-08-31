@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="es" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador: Ciclo de Fallo de Página</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#2563eb',
+                        secondary: '#64748b',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+        body { font-family: 'Inter', sans-serif; transition: background-color 0.3s, color 0.3s; }
+
+        .visualizer {
+            display: flex;
+            flex-direction: column;
+            gap: 50px;
+            padding: 30px;
+            border-radius: 20px;
+            position: relative;
+        }
+
+        .row-top {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 30px;
+            width: 100%;
+        }
+
+        .box { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); border-width: 2px; }
+
+        .highlight-hw { border-color: #ef4444 !important; background: rgba(239, 68, 68, 0.05); transform: scale(1.02); }
+        .highlight-os { border-color: #2563eb !important; background: rgba(37, 99, 235, 0.05); transform: scale(1.02); }
+
+        .slot {
+            height: 52px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.65rem;
+            font-weight: 800;
+            border-radius: 12px;
+            transition: all 0.3s;
+            border: 2px solid #e2e8f0;
+            position: relative;
+            background: white;
+        }
+        
+        /* Shading para RAM Llena */
+        .slot.occupied {
+            background-color: #f8fafc;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.06);
+            border-color: #e2e8f0;
+        }
+        .dark .slot.occupied { background-color: #1e293b; border-color: #334155; }
+
+        .slot.active-process { background-color: #dbeafe !important; border-color: #3b82f6 !important; color: #1e40af; }
+        .slot.dirty { border-left: 8px solid #ef4444; }
+
+        .arrow {
+            position: absolute;
+            font-size: 2rem;
+            color: #2563eb;
+            transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            opacity: 0;
+            pointer-events: none;
+            z-index: 50;
+        }
+
+        .flying-page {
+            position: fixed;
+            width: 90px;
+            height: 45px;
+            background: #3b82f6;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 0.7rem;
+            border-radius: 10px;
+            z-index: 100;
+            pointer-events: none;
+            box-shadow: 0 20px 30px -10px rgba(0, 0, 0, 0.5);
+            transition: all 1.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .page-table { width: 100%; border-collapse: collapse; font-size: 0.7rem; }
+        .page-table th, .page-table td { padding: 8px 4px; border-bottom: 1px solid #e2e8f0; }
+        .dark .page-table td { border-bottom-color: #334155; }
+
+        .dark .box { background-color: #1e293b; border-color: #334155; }
+        .dark .visualizer { background-color: #0f172a; border-color: #1e293b; }
+        
+        #log::-webkit-scrollbar { display: none; }
+        #log { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="p-8 min-h-screen flex flex-col bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+
+    <header class="mb-8 flex justify-between items-end">
+        <div>
+            <h1 class="text-4xl font-black uppercase tracking-tighter text-slate-800 dark:text-white">Simulador de Fallo de Página</h1>
+            <p class="text-slate-500 dark:text-slate-400 font-bold text-sm tracking-wide">Traducción de Direcciones y Gestión de Memoria Virtual.</p>
+        </div>
+        <div class="flex items-center gap-4">
+            <button onclick="toggleDarkMode()" class="p-4 rounded-2xl bg-white dark:bg-slate-900 shadow-xl border border-slate-200 dark:border-slate-800 hover:scale-110 transition-all">
+                <span id="theme-icon">🌙</span>
+            </button>
+            <div class="bg-blue-600 p-4 rounded-2xl shadow-xl w-72">
+                <label class="block text-[10px] font-black text-blue-200 mb-1 uppercase tracking-widest text-center">Estado del Sistema</label>
+                <div id="system-mode-indicator" class="flex items-center justify-center gap-2">
+                    <span class="w-3 h-3 rounded-full bg-white animate-pulse"></span>
+                    <span class="text-sm font-black text-white" id="current-mode">MODO USUARIO</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="grid grid-cols-1 lg:grid-cols-4 gap-8 flex-grow">
+        
+        <!-- PANEL DE CONTROL -->
+        <div class="flex flex-col gap-6 lg:col-span-1">
+            <div class="bg-white dark:bg-slate-900 p-8 rounded-[32px] shadow-2xl border border-slate-200 dark:border-slate-800">
+                <h3 class="font-black text-slate-800 dark:text-white mb-6 flex items-center gap-2 text-xs uppercase tracking-widest">
+                    <span class="bg-blue-600 text-white w-6 h-6 rounded-full flex items-center justify-center font-black">1</span>
+                    Seleccionar Caso
+                </h3>
+                <div class="space-y-3">
+                    <button onclick="requestPage(0)" class="w-full text-left bg-green-50 dark:bg-green-900/10 hover:bg-green-600 hover:text-white border border-green-200 dark:border-green-800 p-4 rounded-2xl transition-all">
+                        <div class="text-[10px] font-black uppercase opacity-60">Caso A</div>
+                        <div class="text-xs font-bold italic">Acceso Pág 0 (Acierto)</div>
+                    </button>
+                    <button onclick="requestPage(3)" class="w-full text-left bg-blue-50 dark:bg-blue-900/10 hover:bg-blue-600 hover:text-white border border-blue-200 dark:border-blue-800 p-4 rounded-2xl transition-all">
+                        <div class="text-[10px] font-black uppercase opacity-60">Caso B</div>
+                        <div class="text-xs font-bold italic">Acceso Pág 3 (Fallo Limpio)</div>
+                    </button>
+                    <button onclick="requestPage(2)" class="w-full text-left bg-amber-50 dark:bg-amber-900/10 hover:bg-amber-600 hover:text-white border border-amber-200 dark:border-amber-800 p-4 rounded-2xl transition-all">
+                        <div class="text-[10px] font-black uppercase opacity-60">Caso C</div>
+                        <div class="text-xs font-bold italic">Acceso Pág 2 (Fallo Sucio)</div>
+                    </button>
+                </div>
+
+                <div class="mt-6 bg-slate-50 dark:bg-slate-800/50 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 min-h-[180px]">
+                    <div id="step-title" class="text-blue-600 dark:text-blue-400 font-black text-[10px] mb-2 uppercase tracking-widest italic">Monitor Kernel</div>
+                    <div id="step-description" class="text-slate-600 dark:text-slate-300 text-[11px] leading-relaxed font-semibold">
+                        Listo para procesar solicitudes. Las flechas apuntarán exactamente a las filas y marcos de memoria.
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 gap-3 mt-6">
+                    <button id="next-btn" disabled onclick="nextStep()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-5 rounded-2xl shadow-xl shadow-blue-200 dark:shadow-none transition-all disabled:opacity-20 text-[10px] uppercase tracking-widest">
+                        Siguiente Fase ➔
+                    </button>
+                    <button onclick="location.reload()" class="w-full bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-black py-3 rounded-2xl text-[10px] uppercase tracking-widest hover:bg-red-100 hover:text-red-600 transition-all">
+                        Reiniciar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- VISUALIZADOR -->
+        <div class="lg:col-span-3 bg-white dark:bg-slate-900 p-8 rounded-[40px] shadow-2xl border border-slate-200 dark:border-slate-800 relative">
+            <div class="visualizer bg-slate-50/50 dark:bg-slate-950/30 border border-slate-100 dark:border-slate-800" id="visualizer">
+                <div class="arrow" id="flow-arrow">➜</div>
+
+                <div class="row-top">
+                    <div class="flex flex-col gap-4">
+                        <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Hardware</h3>
+                        <div class="box bg-white p-5 rounded-3xl shadow-sm" id="cpu-box">
+                            <span class="text-[9px] font-black text-blue-600 uppercase mb-2 block">CPU</span>
+                            <div id="cpu-status" class="text-sm font-mono font-black">STANDBY</div>
+                        </div>
+                        <div class="box bg-white p-4 rounded-2xl shadow-sm" id="mmu-box">
+                            <span class="text-[9px] font-black text-red-600 uppercase mb-1 block tracking-tighter">MMU</span>
+                            <div class="text-[10px] font-bold text-slate-500 uppercase">Traductor</div>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col gap-4">
+                        <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Estructura Datos</h3>
+                        <div class="box p-0 overflow-hidden rounded-3xl bg-white shadow-sm" id="pt-box">
+                            <div class="bg-slate-800 text-white py-2 font-black text-[9px] text-center uppercase tracking-widest">Tabla de Páginas</div>
+                            <table class="page-table">
+                                <thead class="bg-slate-50 dark:bg-slate-800 text-slate-400">
+                                    <tr><th>P</th><th>M</th><th>V/I</th><th>D</th></tr>
+                                </thead>
+                                <tbody id="page-table-body" class="text-center font-bold"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col gap-4">
+                        <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Memoria Física</h3>
+                        <div class="box p-4 bg-slate-100/50 dark:bg-slate-800/50 rounded-3xl space-y-2 shadow-sm" id="ram-box"></div>
+                    </div>
+                </div>
+
+                <div class="flex justify-center mt-4">
+                    <div class="flex flex-col items-center gap-4 w-2/3">
+                        <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Swap Area (Almacenamiento)</h3>
+                        <div class="box w-full p-6 bg-slate-200/30 dark:bg-slate-800/30 rounded-[40px] shadow-inner" id="disk-box">
+                            <div class="grid grid-cols-2 gap-4" id="swap-area"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- LOG -->
+        <div class="lg:col-span-4 bg-slate-900 p-8 rounded-[32px] shadow-2xl border border-slate-800">
+            <h3 class="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] mb-4">Eventos del Kernel</h3>
+            <div id="log" class="font-mono text-[10px] leading-relaxed overflow-y-auto max-h-[150px] space-y-2 text-slate-400 pr-4">
+                <div class="opacity-50">> System ready. Memory mapping established.</div>
+            </div>
+        </div>
+
+    </main>
+
+    <footer class="mt-10 text-center text-[10px] text-slate-400 font-black uppercase tracking-[0.5em] pb-6">
+        &copy; Diego García
+    </footer>
+
+    <script>
+        const state = {
+            pageTable: [
+                { id: 0, frame: 1, valid: 1, dirty: 0 },
+                { id: 1, frame: 3, valid: 1, dirty: 1 },
+                { id: 2, frame: null, valid: 0, dirty: 0 },
+                { id: 3, frame: null, valid: 0, dirty: 0 }
+            ],
+            ram: [10, 0, 11, 1], // Marcos 0 y 2 ocupados (OTRO)
+            disk: [0, 1, 2, 3],
+            currentStep: 0,
+            requestedPage: null,
+            evictedFrame: null,
+            isProcessing: false,
+            activeSteps: []
+        };
+
+        const allSteps = {
+            requestToMMU: {
+                title: "1. PETICIÓN CPU",
+                desc: "Se solicita acceso a la <strong>Página " + state.requestedPage + "</strong>. El bus de direcciones envía la señal al MMU.",
+                action: () => moveArrow('cpu-box', 'mmu-box')
+            },
+            checkTable: {
+                title: "2. CONSULTA TABLA",
+                desc: "La MMU busca en la <strong>Fila " + (state.requestedPage + 1) + "</strong> para validar el bit de presencia.",
+                action: () => {
+                    const row = document.getElementById('ptr-' + state.requestedPage);
+                    moveArrow('mmu-box', row, -20); // Subir un poco la flecha
+                }
+            },
+            accessRAM: {
+                title: "3. ACCESO A RAM",
+                desc: "Bit V=1. Traducción directa al <strong>Marco " + (state.pageTable[0].frame) + "</strong>. Extracción por hardware.",
+                action: () => {
+                    const slot = document.getElementById('ram-slot-1');
+                    moveArrow('mmu-box', slot);
+                    highlight('ram-box', 'hw');
+                }
+            },
+            returnToCPU: {
+                title: "4. DATO EN CPU",
+                desc: "El dato viaja de vuelta a los registros de la CPU. Acceso finalizado.",
+                action: () => {
+                    const slot = document.getElementById('ram-slot-1');
+                    moveArrow(slot, 'cpu-box');
+                    document.getElementById('cpu-status').innerText = "OK: P0";
+                    state.isProcessing = false;
+                    document.getElementById('next-btn').disabled = true;
+                }
+            },
+            trapException: {
+                title: "3. TRAP (FALLO)",
+                desc: "Bit V=0: Página ausente. El hardware genera un <strong>Trap</strong> al Sistema Operativo.",
+                action: () => {
+                    setMode("KERNEL: TRAP EXCEPTION");
+                    moveArrow('mmu-box', 'cpu-box');
+                }
+            },
+            locateOnDisk: {
+                title: "4. LOCALIZACIÓN DISCO",
+                desc: "El SO ubica el bloque de la <strong>Pág " + state.requestedPage + "</strong> en el área de Swap.",
+                action: () => {
+                    const diskSlot = document.getElementById('disk-slot-' + state.requestedPage);
+                    moveArrow('cpu-box', diskSlot);
+                }
+            },
+            selectVictim: {
+                title: "5. SELECCIÓN VÍCTIMA",
+                desc: "Memoria llena. El SO elige desalojar el <strong>Marco " + (state.requestedPage === 2 ? "3" : "1") + "</strong>.",
+                action: () => {
+                    state.evictedFrame = (state.requestedPage === 2) ? 3 : 1;
+                    const ramSlot = document.getElementById('ram-slot-' + state.evictedFrame);
+                    moveArrow('cpu-box', ramSlot);
+                    highlight('ram-box', 'os');
+                }
+            },
+            swapOut: {
+                title: "6. SWAP OUT (DIRTY)",
+                desc: "<strong>BIT D=1:</strong> La página debe guardarse en disco antes de ser sobrescrita.",
+                action: () => {
+                    const victimId = state.ram[state.evictedFrame];
+                    const ramSlot = document.getElementById('ram-slot-' + state.evictedFrame);
+                    const diskSlot = document.getElementById('disk-slot-0');
+                    animateSwap('ram', state.evictedFrame, 'disk', 0, `Pág ${victimId}`);
+                    moveArrow(ramSlot, diskSlot);
+                    
+                    setTimeout(() => {
+                        state.ram[state.evictedFrame] = null;
+                        renderRAM();
+                    }, 750);
+                }
+            },
+            swapIn: {
+                title: "7. SWAP IN & UPDATE",
+                desc: "Carga física de la <strong>Pág " + state.requestedPage + "</strong>. Se actualiza V=1 en la tabla.",
+                action: () => {
+                    const oldPage = state.pageTable.find(p => p.frame === state.evictedFrame);
+                    if (oldPage) { oldPage.valid = 0; oldPage.frame = null; }
+                    const newPage = state.pageTable[state.requestedPage];
+                    newPage.frame = state.evictedFrame;
+                    newPage.valid = 1;
+                    
+                    const diskSlot = document.getElementById('disk-slot-' + state.requestedPage);
+                    const ramSlot = document.getElementById('ram-slot-' + state.evictedFrame);
+                    
+                    animateSwap('disk', state.requestedPage, 'ram', state.evictedFrame, `Pág ${state.requestedPage}`);
+                    moveArrow(diskSlot, ramSlot);
+                    
+                    setTimeout(() => {
+                        state.ram[state.evictedFrame] = state.requestedPage;
+                        renderRAM();
+                        renderTable();
+                    }, 1500);
+                }
+            },
+            resumeRetry: {
+                title: "8. REINTENTO",
+                desc: "Kernel devuelve el control. CPU repite instrucción y MMU ahora encuentra el dato en RAM.",
+                action: () => {
+                    setMode("MODO USUARIO (ÉXITO)");
+                    highlight('cpu-box', 'hw');
+                    moveArrow('cpu-box', 'mmu-box');
+                    document.getElementById('cpu-status').innerText = "OK: PÁG " + state.requestedPage;
+                    state.isProcessing = false;
+                    document.getElementById('next-btn').disabled = true;
+                }
+            }
+        };
+
+        function requestPage(id) {
+            if (state.isProcessing) return;
+            state.requestedPage = id;
+            log(`>> CPU SOLICITA: PÁGINA ${id}`, "info");
+            state.isProcessing = true;
+            state.currentStep = 0;
+            
+            if (state.pageTable[id].valid) {
+                state.activeSteps = [allSteps.requestToMMU, allSteps.checkTable, allSteps.accessRAM, allSteps.returnToCPU];
+            } else {
+                state.activeSteps = [allSteps.requestToMMU, allSteps.checkTable, allSteps.trapException, allSteps.locateOnDisk, allSteps.selectVictim];
+                const victimFrame = (id === 2) ? 3 : 1;
+                const victimId = state.ram[victimFrame];
+                const victimPage = (victimId < 4) ? state.pageTable[victimId] : null;
+                if (victimPage && victimPage.dirty) state.activeSteps.push(allSteps.swapOut);
+                state.activeSteps.push(allSteps.swapIn);
+                state.activeSteps.push(allSteps.resumeRetry);
+            }
+            document.getElementById('next-btn').disabled = false;
+            nextStep();
+        }
+
+        function nextStep() {
+            if (state.currentStep >= state.activeSteps.length) return;
+            clearHighlights();
+            const step = state.activeSteps[state.currentStep];
+            document.getElementById('step-title').innerText = step.title;
+            document.getElementById('step-description').innerHTML = step.desc;
+            step.action();
+            log(`[STEP] ${step.title}`);
+            state.currentStep++;
+            if (state.currentStep >= state.activeSteps.length) document.getElementById('next-btn').innerText = "COMPLETADO";
+            else document.getElementById('next-btn').innerText = `PASO ${state.currentStep + 1} / ${state.activeSteps.length} ➔`;
+        }
+
+        function toggleDarkMode() {
+            document.documentElement.classList.toggle('dark');
+            document.getElementById('theme-icon').innerText = document.documentElement.classList.contains('dark') ? '☀️' : '🌙';
+        }
+
+        function animateSwap(fromType, fromIdx, toType, toIdx, content) {
+            const fromEl = document.getElementById(fromType === 'ram' ? 'ram-slot-'+fromIdx : 'disk-slot-'+fromIdx);
+            const toEl = document.getElementById(toType === 'ram' ? 'ram-slot-'+toIdx : 'disk-slot-'+toIdx);
+            const fromRect = fromEl.getBoundingClientRect();
+            const toRect = toEl.getBoundingClientRect();
+
+            const flyer = document.createElement('div');
+            flyer.className = 'flying-page';
+            flyer.innerText = content;
+            flyer.style.left = fromRect.left + 'px';
+            flyer.style.top = fromRect.top + 'px';
+            document.body.appendChild(flyer);
+
+            setTimeout(() => {
+                flyer.style.left = toRect.left + 'px';
+                flyer.style.top = toRect.top + 'px';
+                flyer.style.opacity = '0';
+            }, 50);
+            setTimeout(() => flyer.remove(), 1600);
+        }
+
+        function init() { renderTable(); renderRAM(); renderDisk(); }
+
+        function renderTable() {
+            const tbody = document.getElementById('page-table-body');
+            tbody.innerHTML = state.pageTable.map(p => `
+                <tr id="ptr-${p.id}">
+                    <td class="p-2 font-black">${p.id}</td>
+                    <td class="p-2 text-blue-500">${p.frame !== null ? 'F' + p.frame : '-'}</td>
+                    <td class="p-2"><span class="px-2 py-0.5 rounded-lg text-[8px] font-black ${p.valid ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">${p.valid ? 'V' : 'I'}</span></td>
+                    <td class="p-2 ${p.dirty ? 'text-red-500 animate-pulse' : 'text-slate-300'}">${p.dirty ? '1' : '0'}</td>
+                </tr>
+            `).join('');
+        }
+
+        function renderRAM() {
+            const container = document.getElementById('ram-box');
+            container.innerHTML = `<h4 class="text-[8px] font-black opacity-40 uppercase text-center">RAM FÍSICA</h4>` + state.ram.map((pId, i) => {
+                let label = (pId >= 10) ? "PROCESO OTRO" : "Página " + pId;
+                if (pId === null) label = "VACIANDO...";
+                return `<div id="ram-slot-${i}" class="slot occupied ${pId !== null && pId < 10 ? 'active-process' : ''} ${pId !== null && pId < 4 && state.pageTable[pId].dirty ? 'dirty' : ''}">
+                    <div class="text-[7px] opacity-60">MARCO ${i}</div>
+                    <div class="text-[9px]">${label}</div>
+                </div>`;
+            }).join('');
+        }
+
+        function renderDisk() {
+            const container = document.getElementById('swap-area');
+            container.innerHTML = state.disk.map(pId => `<div id="disk-slot-${pId}" class="slot bg-slate-100 dark:bg-slate-800 border-slate-300 text-slate-500">Pág ${pId}</div>`).join('');
+        }
+
+        function log(msg, type = "") {
+            const logDiv = document.getElementById('log');
+            let color = "text-slate-500";
+            if (type === "success") color = "text-green-400 font-bold";
+            if (type === "error") color = "text-red-400 font-bold";
+            if (type === "info") color = "text-blue-400 font-bold";
+            if (type === "warning") color = "text-amber-400 font-bold";
+            logDiv.innerHTML += `<div class="${color}">> ${msg}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function setMode(mode) {
+            document.getElementById('current-mode').innerText = mode;
+            const indicator = document.querySelector('#system-mode-indicator span');
+            indicator.className = mode.includes("KERNEL") ? "w-3 h-3 rounded-full bg-white animate-ping" : "w-3 h-3 rounded-full bg-white animate-pulse";
+        }
+
+        function highlight(id, type) { 
+            const el = document.getElementById(id);
+            if(el) el.classList.add(type === 'hw' ? 'highlight-hw' : 'highlight-os'); 
+        }
+
+        function clearHighlights() {
+            ['cpu-box', 'mmu-box', 'pt-box', 'ram-box', 'disk-box'].forEach(id => {
+                const el = document.getElementById(id);
+                if(el) el.classList.remove('highlight-hw', 'highlight-os');
+            });
+            document.getElementById('flow-arrow').style.opacity = 0;
+        }
+
+        function moveArrow(from, to, yOffset = 0) {
+            const fromEl = typeof from === 'string' ? document.getElementById(from) : from;
+            const toEl = typeof to === 'string' ? document.getElementById(to) : to;
+            const fromRect = fromEl.getBoundingClientRect();
+            const toRect = toEl.getBoundingClientRect();
+            const arrow = document.getElementById('flow-arrow');
+            const viz = document.getElementById('visualizer').getBoundingClientRect();
+            arrow.style.opacity = 1;
+            arrow.style.left = (fromRect.left - viz.left + fromRect.width/2) + 'px';
+            arrow.style.top = (fromRect.top - viz.top + fromRect.height/2) + 'px';
+            setTimeout(() => {
+                arrow.style.left = (toRect.left - viz.left + toRect.width/2) + 'px';
+                arrow.style.top = (toRect.top - viz.top + toRect.height/2 + yOffset) + 'px';
+            }, 50);
+        }
+
+        init();
+    </script>
+</body>
+</html>

@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador: Traducción de Direcciones (MMU)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; }
+        
+        .binary-box {
+            display: inline-flex;
+            border: 2px solid #cbd5e1;
+            border-radius: 4px;
+            overflow: hidden;
+            font-family: monospace;
+        }
+        
+        .bit {
+            width: 30px; height: 40px;
+            display: flex; align-items: center; justify-content: center;
+            background: white; border-right: 1px solid #e2e8f0;
+            font-weight: bold; transition: all 0.3s ease;
+        }
+        
+        .bit-vpn { background-color: #dcfce7; color: #166534; border-bottom: 4px solid #22c55e; }
+        .bit-offset { background-color: #fee2e2; color: #991b1b; border-bottom: 4px solid #ef4444; }
+        .bit-pfn { background-color: #dbeafe; color: #1e40af; border-bottom: 4px solid #3b82f6; }
+
+        .page-table-row { transition: all 0.3s ease; }
+        .page-table-row.active { background-color: #fef08a; transform: scale(1.02); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+
+        /* Animación de flujo */
+        @keyframes flow {
+            0% { transform: translateY(-10px); opacity: 0; }
+            100% { transform: translateY(0); opacity: 1; }
+        }
+        .animate-flow { animation: flow 0.5s ease-out forwards; }
+        
+        .arrow-path { stroke: #94a3b8; stroke-width: 2; fill: none; stroke-dasharray: 5; animation: dash 2s linear infinite; }
+        @keyframes dash { to { stroke-dashoffset: -20; } }
+    </style>
+</head>
+<body class="p-6">
+
+    <header class="mb-8 text-center">
+        <h1 class="text-3xl font-extrabold text-slate-800">Traducción de Direcciones: Virtual a Física</h1>
+        <p class="text-slate-600 mt-2">Simulador pedagógico - Arquitectura de Computadores</p>
+    </header>
+
+    <div class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <!-- BLOQUE 1: LA PETICIÓN (CPU) -->
+        <div class="bg-white p-6 rounded-2xl shadow-xl border border-slate-200">
+            <h2 class="text-xl font-bold text-slate-700 mb-6 flex items-center gap-2">
+                <span class="bg-slate-800 text-white w-8 h-8 rounded-full flex items-center justify-center text-sm">1</span>
+                Dirección Virtual (CPU)
+            </h2>
+            
+            <div class="space-y-6">
+                <div>
+                    <label class="block text-sm font-bold text-slate-500 mb-2 uppercase">Entrada del Alumno (Decimal)</label>
+                    <input type="number" id="v-addr-input" min="0" max="255" value="76" 
+                           class="w-full text-2xl font-mono border-2 border-slate-200 rounded-lg p-3 focus:border-indigo-500 outline-none transition-all">
+                    <p class="text-[10px] text-slate-400 mt-1 italic">Rango 0-255 (8 bits) para fines didácticos.</p>
+                </div>
+
+                <div class="p-4 bg-slate-50 rounded-xl border border-dashed border-slate-300">
+                    <span class="text-xs font-bold text-slate-400 block mb-3 uppercase text-center">Descomposición de Bits (Página de 16B)</span>
+                    <div class="flex justify-center">
+                        <div class="binary-box" id="virtual-bits-container">
+                            <!-- Bits generados por JS -->
+                        </div>
+                    </div>
+                    <div class="flex justify-between mt-2 px-2">
+                        <span class="text-[11px] font-bold text-green-600">VPN (4 bits)</span>
+                        <span class="text-[11px] font-bold text-red-600">Offset (4 bits)</span>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 text-center">
+                    <div class="bg-green-50 p-2 rounded-lg border border-green-200">
+                        <span class="text-[10px] text-green-700 font-bold block">VPN Decimal</span>
+                        <span id="vpn-dec" class="text-xl font-black text-green-600">0</span>
+                    </div>
+                    <div class="bg-red-50 p-2 rounded-lg border border-red-200">
+                        <span class="text-[10px] text-red-700 font-bold block">Offset Decimal</span>
+                        <span id="offset-dec" class="text-xl font-black text-red-600">0</span>
+                    </div>
+                </div>
+            </div>
+            
+            <button onclick="traducir()" class="w-full mt-6 bg-slate-800 hover:bg-slate-900 text-white font-bold py-4 rounded-xl shadow-lg transform transition active:scale-95">
+                Simular Traducción ➔
+            </button>
+        </div>
+
+        <!-- BLOQUE 2: LA MMU Y TABLA DE PÁGINAS -->
+        <div class="bg-white p-6 rounded-2xl shadow-xl border border-slate-200 flex flex-col">
+            <h2 class="text-xl font-bold text-slate-700 mb-6 flex items-center gap-2">
+                <span class="bg-indigo-600 text-white w-8 h-8 rounded-full flex items-center justify-center text-sm">2</span>
+                MMU: Page Table
+            </h2>
+
+            <div class="flex-grow overflow-y-auto pr-2 max-h-[400px]">
+                <table class="w-full text-sm font-mono border-collapse">
+                    <thead>
+                        <tr class="text-left text-slate-400 border-b">
+                            <th class="pb-2 font-bold">VPN</th>
+                            <th class="pb-2 font-bold text-center">➔</th>
+                            <th class="pb-2 font-bold">PFN (RAM)</th>
+                            <th class="pb-2 font-bold">Bit V</th>
+                        </tr>
+                    </thead>
+                    <tbody id="page-table-body">
+                        <!-- Filas generadas por JS -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <div id="mmu-message" class="mt-4 p-3 bg-indigo-50 rounded-lg border border-indigo-100 text-[11px] text-indigo-800 italic leading-snug">
+                La MMU usa el VPN como índice para encontrar en qué Marco de la RAM está la página.
+            </div>
+        </div>
+
+        <!-- BLOQUE 3: LA DIRECCIÓN FÍSICA -->
+        <div class="bg-white p-6 rounded-2xl shadow-xl border border-slate-200">
+            <h2 class="text-xl font-bold text-slate-700 mb-6 flex items-center gap-2">
+                <span class="bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center text-sm">3</span>
+                Dirección Física (RAM)
+            </h2>
+
+            <div class="space-y-8 h-full flex flex-col justify-center">
+                <div class="text-center p-6 bg-blue-50 rounded-2xl border-2 border-blue-200 relative overflow-hidden">
+                    <div id="collision-anim" class="hidden absolute inset-0 bg-blue-400/20 flex items-center justify-center">
+                        <span class="animate-ping text-blue-600 text-4xl font-bold">+</span>
+                    </div>
+                    
+                    <span class="text-xs font-bold text-blue-400 block mb-4 uppercase">Concatenación de Bits Final</span>
+                    <div class="flex justify-center mb-4">
+                        <div class="binary-box" id="physical-bits-container">
+                            <!-- Bits resultantes -->
+                        </div>
+                    </div>
+                    
+                    <div class="flex justify-between px-4 text-[10px] font-bold">
+                        <span class="text-blue-600">PFN (Marco obtenido)</span>
+                        <span class="text-red-600">Offset (Se mantiene)</span>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900 text-white p-6 rounded-2xl text-center shadow-2xl">
+                    <span class="text-xs font-bold text-slate-400 block mb-2 uppercase tracking-widest">Resultado de Acceso</span>
+                    <div id="final-phys-dec" class="text-5xl font-black text-blue-400 mb-1">0</div>
+                    <div id="final-phys-hex" class="text-sm font-mono text-slate-500">0x00</div>
+                </div>
+
+                <div class="p-4 bg-yellow-50 border border-yellow-200 rounded-xl text-xs text-yellow-800">
+                    <strong>Nota para el examen:</strong> La dirección física no es una suma (A+B), es una <u>concatenación</u> de bits.
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <footer class="mt-4 text-center text-sm text-slate-500">
+        &copy; Desarrollado por Diego García
+    </footer>
+
+    <script>
+        // Configuración didáctica:
+        // Espacio Virtual: 256 Bytes (8 bits)
+        // Tamaño de Página: 16 Bytes (Offset de 4 bits, 2^4)
+        // Cantidad de Páginas: 16 (VPN de 4 bits)
+        
+        const PAGE_SIZE = 16;
+        const OFFSET_BITS = 4;
+        const VPN_BITS = 4;
+        
+        // Tabla de páginas aleatoria (Mapeo VPN -> PFN)
+        let pageTable = [];
+        for(let i=0; i<16; i++) {
+            pageTable.push({
+                vpn: i,
+                pfn: Math.floor(Math.random() * 16), // La RAM también tiene 16 marcos
+                valid: Math.random() > 0.1 ? 1 : 0 // Algunos fallos de página por realismo
+            });
+        }
+
+        function init() {
+            renderPageTable();
+            actualizarBits();
+        }
+
+        function renderPageTable() {
+            const body = document.getElementById('page-table-body');
+            body.innerHTML = '';
+            pageTable.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.id = `pt-row-${row.vpn}`;
+                tr.className = 'page-table-row border-b border-slate-50';
+                tr.innerHTML = `
+                    <td class="py-2 text-slate-600 font-bold">${row.vpn.toString(2).padStart(4,'0')} <span class="text-[9px] text-slate-400">(${row.vpn})</span></td>
+                    <td class="py-2 text-center text-slate-300">➔</td>
+                    <td class="py-2 text-blue-600 font-bold">${row.pfn.toString(2).padStart(4,'0')} <span class="text-[9px] text-slate-400">(${row.pfn})</span></td>
+                    <td class="py-2 text-center ${row.valid ? 'text-green-500' : 'text-red-500'} font-bold">${row.valid}</td>
+                `;
+                body.appendChild(tr);
+            });
+        }
+
+        function actualizarBits() {
+            const val = parseInt(document.getElementById('v-addr-input').value) || 0;
+            const bin = val.toString(2).padStart(8, '0');
+            
+            const vpnPart = bin.substring(0, 4);
+            const offsetPart = bin.substring(4, 8);
+            
+            const vpnDec = parseInt(vpnPart, 2);
+            const offsetDec = parseInt(offsetPart, 2);
+
+            // UI Virtual
+            const container = document.getElementById('virtual-bits-container');
+            container.innerHTML = '';
+            for(let i=0; i<8; i++) {
+                const bit = document.createElement('div');
+                bit.className = `bit ${i < 4 ? 'bit-vpn' : 'bit-offset'}`;
+                bit.innerText = bin[i];
+                container.appendChild(bit);
+            }
+
+            document.getElementById('vpn-dec').innerText = vpnDec;
+            document.getElementById('offset-dec').innerText = offsetDec;
+
+            return { vpnDec, offsetDec, offsetPart };
+        }
+
+        async function traducir() {
+            const { vpnDec, offsetDec, offsetPart } = actualizarBits();
+            const mmuMsg = document.getElementById('mmu-message');
+            
+            // 1. Resaltar en Tabla de Páginas
+            document.querySelectorAll('.page-table-row').forEach(r => r.classList.remove('active'));
+            const rowEl = document.getElementById(`pt-row-${vpnDec}`);
+            if (rowEl) {
+                rowEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                rowEl.classList.add('active');
+            }
+
+            const entry = pageTable[vpnDec];
+            
+            if(!entry.valid) {
+                mmuMsg.innerHTML = `<span class="text-red-600 font-bold">¡PAGE FAULT!</span> La página ${vpnDec} no está en RAM. Cargando desde Disco...`;
+                mmuMsg.className = "mt-4 p-3 bg-red-50 rounded-lg border border-red-100 text-[11px] text-red-800";
+                return;
+            }
+
+            mmuMsg.innerHTML = `<strong>MMU:</strong> VPN ${vpnDec} encontrado. Mapea al <strong>Marco Físico (PFN) ${entry.pfn}</strong>. Enviando bits a RAM...`;
+            mmuMsg.className = "mt-4 p-3 bg-green-50 rounded-lg border border-green-100 text-[11px] text-green-800";
+
+            // 2. Animación de "soldadura" (concatenación)
+            const pfnPart = entry.pfn.toString(2).padStart(4, '0');
+            const physBitsContainer = document.getElementById('physical-bits-container');
+            physBitsContainer.innerHTML = '';
+            
+            // Visualizar PFN + Offset
+            const collision = document.getElementById('collision-anim');
+            collision.classList.remove('hidden');
+            setTimeout(() => collision.classList.add('hidden'), 500);
+
+            for(let i=0; i<4; i++) {
+                const bit = document.createElement('div');
+                bit.className = 'bit bit-pfn animate-flow';
+                bit.innerText = pfnPart[i];
+                physBitsContainer.appendChild(bit);
+            }
+            for(let i=0; i<4; i++) {
+                const bit = document.createElement('div');
+                bit.className = 'bit bit-offset animate-flow';
+                bit.innerText = offsetPart[i];
+                physBitsContainer.appendChild(bit);
+            }
+
+            // 3. Resultado Final
+            const finalPhysBin = pfnPart + offsetPart;
+            const finalPhysDec = parseInt(finalPhysBin, 2);
+            
+            document.getElementById('final-phys-dec').innerText = finalPhysDec;
+            document.getElementById('final-phys-hex').innerText = `0x${finalPhysDec.toString(16).toUpperCase().padStart(2, '0')}`;
+        }
+
+        // Listener para cambios en tiempo real
+        document.getElementById('v-addr-input').addEventListener('input', actualizarBits);
+
+        init();
+    </script>
+</body>
+</html>
